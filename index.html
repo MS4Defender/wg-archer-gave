@@ -1,237 +1,223 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no"/>
-  <title>WG Archer Run</title>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WG Archer Run</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-  <style>
-    html, body { margin:0; padding:0; background:#0f0f12; color:#fff; font-family: Arial, sans-serif; }
-    .wrap { padding:16px; }
-    h2 { margin: 0 0 10px 0; }
-    .stats { opacity:.95; line-height: 1.6; margin-bottom: 12px; }
-    button { padding:10px 18px; font-size:16px; border-radius:10px; border:0; cursor:pointer; }
-    .hint { opacity:.75; margin-top: 10px; }
+<style>
+html, body{
+    margin:0;
+    padding:0;
+    background:#0f0f12;
+    color:#fff;
+    font-family:Arial, sans-serif;
+    height:100%;
+    overflow:hidden;
+}
 
-    /* ВАЖНО: поле игры делаем ЯВНО ВИДИМЫМ */
-    .gameBox{
-      margin-top: 14px;
-      border: 3px solid #ffffff;     /* Белая рамка — точно увидишь */
-      border-radius: 12px;
-      background: #1b1b22;           /* Контрастный фон */
-      overflow:hidden;
-    }
+.wrap{
+    height:100vh;
+    box-sizing:border-box;
+    padding:12px;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
 
-    canvas{
-      display:block;
-      width:100%;
-      height:320px;                 /* Видимая высота */
-      touch-action: manipulation;
-    }
-  </style>
+h1{
+    margin:0;
+    font-size:22px;
+}
+
+.stats{
+    font-size:14px;
+    line-height:1.6;
+}
+
+canvas{
+    width:100%;
+    height:50vh;
+    min-height:260px;
+    max-height:420px;
+    background:#1a1a22;
+    border-radius:12px;
+    display:block;
+}
+
+button{
+    padding:10px 18px;
+    border:none;
+    border-radius:8px;
+    font-size:14px;
+    cursor:pointer;
+}
+
+.play-btn{
+    background:#4da6ff;
+    color:#000;
+    font-weight:bold;
+}
+
+.hint{
+    font-size:13px;
+    opacity:0.7;
+}
+</style>
 </head>
 
 <body>
-  <div class="wrap">
-    <h2>🏹 WG Archer Run</h2>
+<div class="wrap">
 
-    <div class="stats">
-      ⏱ Время: <b id="t">0.0</b> сек<br>
-      🏁 Дистанция: <b id="d">0</b> м<br>
-      ⚡ Скорость: <b id="s">1.0</b>x
-    </div>
+<h1>🏹 WG Archer Run</h1>
 
-    <button id="btn">▶ Играть</button>
+<div class="stats">
+⏱ Время: <span id="time">0.0</span> сек<br>
+🏁 Дистанция: <span id="distance">0</span> м<br>
+⚡ Скорость: <span id="speed">1.0</span>x
+</div>
 
-    <div class="gameBox">
-      <canvas id="cv"></canvas>
-    </div>
+<canvas id="game"></canvas>
 
-    <div class="hint">Управление: тап по экрану / пробел — прыжок</div>
-  </div>
+<button class="play-btn" id="playBtn">▶ Играть</button>
+
+<div class="hint">
+Пробел / тап по экрану — прыжок.
+</div>
+
+</div>
 
 <script>
-(() => {
-  const cv = document.getElementById("cv");
-  const ctx = cv.getContext("2d");
+if (window.Telegram && Telegram.WebApp) {
+    Telegram.WebApp.ready();
+    Telegram.WebApp.expand();
+}
 
-  const tEl = document.getElementById("t");
-  const dEl = document.getElementById("d");
-  const sEl = document.getElementById("s");
-  const btn = document.getElementById("btn");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
 
-  // Подгоняем реальный размер canvas под экран (чтобы НЕ было “пусто”)
-  function resizeCanvas(){
-    const rect = cv.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    cv.width  = Math.floor(rect.width  * dpr);
-    cv.height = Math.floor(rect.height * dpr);
-    ctx.setTransform(dpr,0,0,dpr,0,0); // рисуем в CSS-пикселях
-  }
-  window.addEventListener("resize", resizeCanvas);
-  resizeCanvas();
+function resizeCanvas(){
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+}
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
 
-  // Игровые параметры
-  let running = false;
-  let last = 0;
+let player = {
+    x:50,
+    y:0,
+    width:30,
+    height:30,
+    velocity:0,
+    jumping:false
+};
 
-  let time = 0;
-  let dist = 0;
-  let speed = 220; // px/sec (базовая)
-  let speedMult = 1.0;
+let gravity = 0.6;
+let obstacles = [];
+let gameRunning = false;
+let startTime = 0;
+let speed = 4;
 
-  // Игрок (квадрат)
-  const player = { x: 60, y: 0, w: 34, h: 34, vy: 0, onGround: true };
-  const groundY = 320 - 40; // земля (в CSS px относительно высоты canvas)
-  function canvasH(){ return 320; } // высота в CSS px
-
-  // Препятствия
-  let obstacles = [];
-  let spawnTimer = 0;
-
-  function reset(){
-    time = 0; dist = 0; speedMult = 1.0;
-    player.y = groundY - player.h;
-    player.vy = 0;
-    player.onGround = true;
+function resetGame(){
+    player.y = canvas.height - player.height - 20;
+    player.velocity = 0;
+    player.jumping = false;
     obstacles = [];
-    spawnTimer = 0;
-    tEl.textContent = "0.0";
-    dEl.textContent = "0";
-    sEl.textContent = "1.0";
-  }
+    speed = 4;
+    document.getElementById("time").textContent = "0.0";
+    document.getElementById("distance").textContent = "0";
+    document.getElementById("speed").textContent = "1.0";
+}
 
-  function jump(){
-    if (!running) return;
-    if (player.onGround){
-      player.vy = -520; // сила прыжка
-      player.onGround = false;
-    }
-  }
+function spawnObstacle(){
+    obstacles.push({
+        x: canvas.width,
+        y: canvas.height - 40,
+        width:20,
+        height:40
+    });
+}
 
-  // Управление
-  document.addEventListener("keydown", e => { if (e.code==="Space") jump(); });
-  cv.addEventListener("pointerdown", () => jump());
-  document.addEventListener("click", (e) => {
-    // если человек кликает по кнопке/окну — прыжок не мешает
-  });
+function update(){
+    if(!gameRunning) return;
 
-  function spawnObstacle(){
-    // разная высота/ширина для разнообразия
-    const w = 26 + Math.random()*18;
-    const h = 30 + Math.random()*28;
-    obstacles.push({ x: cv.getBoundingClientRect().width + 20, y: groundY - h, w, h });
-  }
-
-  function collide(a,b){
-    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
-  }
-
-  function gameOver(){
-    running = false;
-    btn.textContent = "▶ Играть";
-    // Чтобы точно увидеть, что игра “есть”, рисуем большой текст:
-    ctx.fillStyle = "rgba(0,0,0,.55)";
-    ctx.fillRect(0,0,cv.getBoundingClientRect().width,canvasH());
-    ctx.fillStyle = "#fff";
-    ctx.font = "bold 22px Arial";
-    ctx.fillText("Ты проиграл! Нажми Играть", 18, 70);
-  }
-
-  function draw(){
-    const W = cv.getBoundingClientRect().width;
-    const H = canvasH();
-
-    // фон
-    ctx.fillStyle = "#1b1b22";
-    ctx.fillRect(0,0,W,H);
+    ctx.clearRect(0,0,canvas.width,canvas.height);
 
     // земля
-    ctx.fillStyle = "#2e2e3a";
-    ctx.fillRect(0, groundY, W, H-groundY);
+    ctx.fillStyle="#333";
+    ctx.fillRect(0, canvas.height-20, canvas.width, 20);
 
-    // игрок (БЕЛЫЙ — чтобы точно было видно)
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(player.x, player.y, player.w, player.h);
+    // игрок
+    ctx.fillStyle="#ffffff";
+    ctx.fillRect(player.x, player.y, player.width, player.height);
 
-    // препятствия (ЯРКО-ЖЁЛТЫЕ)
-    ctx.fillStyle = "#ffd400";
-    for (const o of obstacles){
-      ctx.fillRect(o.x, o.y, o.w, o.h);
+    // физика
+    player.velocity += gravity;
+    player.y += player.velocity;
+
+    if(player.y >= canvas.height - player.height - 20){
+        player.y = canvas.height - player.height - 20;
+        player.jumping = false;
     }
 
-    // маленькая подпись, чтобы проверить что canvas живой
-    ctx.fillStyle = "rgba(255,255,255,.35)";
-    ctx.font = "12px Arial";
-    ctx.fillText("Canvas OK", 10, 16);
-  }
+    // препятствия
+    ctx.fillStyle="#ff4d4d";
+    for(let i=0;i<obstacles.length;i++){
+        let obs = obstacles[i];
+        obs.x -= speed;
+        ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
 
-  function tick(ts){
-    if (!running) return;
-    if (!last) last = ts;
-    const dt = Math.min(0.033, (ts-last)/1000); // максимум 33мс
-    last = ts;
-
-    const W = cv.getBoundingClientRect().width;
-
-    // время/дистанция/ускорение
-    time += dt;
-    speedMult = 1.0 + Math.min(2.5, time/60); // растёт медленно
-    dist += (speed*speedMult) * dt * 0.10;    // в метры “условно”
-
-    tEl.textContent = time.toFixed(1);
-    dEl.textContent = Math.floor(dist);
-    sEl.textContent = speedMult.toFixed(1);
-
-    // физика прыжка
-    player.vy += 1400 * dt; // гравитация
-    player.y += player.vy * dt;
-
-    if (player.y >= groundY - player.h){
-      player.y = groundY - player.h;
-      player.vy = 0;
-      player.onGround = true;
+        // столкновение
+        if(player.x < obs.x + obs.width &&
+           player.x + player.width > obs.x &&
+           player.y < obs.y + obs.height &&
+           player.y + player.height > obs.y){
+               gameRunning = false;
+               alert("Ты проиграл!");
+               resetGame();
+        }
     }
 
-    // спавн препятствий
-    spawnTimer -= dt;
-    if (spawnTimer <= 0){
-      spawnObstacle();
-      spawnTimer = 1.2 + Math.random()*0.9; // 1.2–2.1 сек
+    obstacles = obstacles.filter(o => o.x > -50);
+
+    if(Math.random() < 0.02){
+        spawnObstacle();
     }
 
-    // движение препятствий + коллизии
-    for (const o of obstacles){
-      o.x -= (speed*speedMult) * dt;
-      if (collide(player, o)){
-        gameOver();
-        return;
-      }
+    let time = (Date.now() - startTime) / 1000;
+    document.getElementById("time").textContent = time.toFixed(1);
+    document.getElementById("distance").textContent = Math.floor(time * 25);
+    document.getElementById("speed").textContent = (speed/4).toFixed(1);
+
+    speed += 0.001;
+
+    requestAnimationFrame(update);
+}
+
+function jump(){
+    if(!player.jumping){
+        player.velocity = -12;
+        player.jumping = true;
     }
-    obstacles = obstacles.filter(o => o.x + o.w > -50);
+}
 
-    draw();
-    requestAnimationFrame(tick);
-  }
+document.addEventListener("keydown", e=>{
+    if(e.code === "Space") jump();
+});
 
-  btn.addEventListener("click", () => {
-    if (!running){
-      resizeCanvas(); // ещё раз на всякий случай
-      reset();
-      running = true;
-      last = 0;
-      btn.textContent = "⏹ Идёт игра";
-      draw();
-      requestAnimationFrame(tick);
-    }
-  });
+canvas.addEventListener("click", jump);
+canvas.addEventListener("touchstart", jump);
 
-  // Первый кадр — чтобы сразу было видно рамку и поле
-  reset();
-  draw();
+document.getElementById("playBtn").addEventListener("click", ()=>{
+    resetGame();
+    gameRunning = true;
+    startTime = Date.now();
+    update();
+});
 
-})();
+resetGame();
 </script>
+
 </body>
 </html>
