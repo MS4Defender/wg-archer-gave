@@ -1,1 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>WG Archer Run</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+body {
+    margin: 0;
+    overflow: hidden;
+    background: #1a1a1a;
+    color: white;
+    font-family: Arial;
+    text-align: center;
+}
 
+#game {
+    position: relative;
+    width: 100vw;
+    height: 70vh;
+    background: #2d2d2d;
+    overflow: hidden;
+}
+
+#player {
+    position: absolute;
+    bottom: 0;
+    left: 50px;
+    width: 40px;
+    height: 40px;
+    background: orange;
+}
+
+.obstacle {
+    position: absolute;
+    bottom: 0;
+    width: 30px;
+    height: 40px;
+    background: crimson;
+}
+
+#score {
+    margin-top: 10px;
+    font-size: 20px;
+}
+
+#gameOver {
+    display: none;
+    font-size: 24px;
+    margin-top: 15px;
+}
+button {
+    padding: 10px 20px;
+    font-size: 16px;
+}
+</style>
+</head>
+
+<body>
+
+<h2>🏹 WG Archer Run</h2>
+
+<div id="game">
+    <div id="player"></div>
+</div>
+
+<div id="score">Время: 0 сек</div>
+<div id="gameOver"></div>
+<button onclick="startGame()">Играть</button>
+
+<script>
+let player = document.getElementById("player");
+let game = document.getElementById("game");
+let scoreText = document.getElementById("score");
+let gameOverText = document.getElementById("gameOver");
+
+let jumping = false;
+let velocity = 0;
+let gravity = 1;
+let isAlive = false;
+let timeSurvived = 0;
+let obstacles = [];
+let gameInterval;
+let obstacleInterval;
+
+function jump() {
+    if (!jumping) {
+        velocity = 15;
+        jumping = true;
+    }
+}
+
+document.addEventListener("keydown", function(e) {
+    if (e.code === "Space") jump();
+});
+document.addEventListener("click", jump);
+
+function createObstacle() {
+    let obstacle = document.createElement("div");
+    obstacle.classList.add("obstacle");
+    obstacle.style.left = "100vw";
+    game.appendChild(obstacle);
+    obstacles.push(obstacle);
+}
+
+function startGame() {
+    gameOverText.style.display = "none";
+    player.style.bottom = "0px";
+    obstacles.forEach(o => o.remove());
+    obstacles = [];
+    timeSurvived = 0;
+    isAlive = true;
+
+    gameInterval = setInterval(gameLoop, 20);
+    obstacleInterval = setInterval(createObstacle, 1500);
+}
+
+function gameLoop() {
+    if (!isAlive) return;
+
+    velocity -= gravity;
+    let bottom = parseInt(player.style.bottom || 0);
+    bottom += velocity;
+
+    if (bottom <= 0) {
+        bottom = 0;
+        jumping = false;
+    }
+
+    player.style.bottom = bottom + "px";
+
+    obstacles.forEach((obstacle, index) => {
+        let obstacleLeft = parseInt(obstacle.style.left);
+        obstacleLeft -= 5;
+        obstacle.style.left = obstacleLeft + "px";
+
+        if (obstacleLeft < -30) {
+            obstacle.remove();
+            obstacles.splice(index, 1);
+        }
+
+        let playerRect = player.getBoundingClientRect();
+        let obstacleRect = obstacle.getBoundingClientRect();
+
+        if (
+            playerRect.left < obstacleRect.right &&
+            playerRect.right > obstacleRect.left &&
+            playerRect.bottom > obstacleRect.top
+        ) {
+            endGame();
+        }
+    });
+
+    timeSurvived += 0.02;
+    scoreText.innerText = "Время: " + timeSurvived.toFixed(1) + " сек";
+}
+
+function endGame() {
+    isAlive = false;
+    clearInterval(gameInterval);
+    clearInterval(obstacleInterval);
+
+    gameOverText.style.display = "block";
+    gameOverText.innerText = "💀 Ты продержался " + timeSurvived.toFixed(1) + " сек";
+
+    // отправка результата в Telegram
+    if (window.Telegram.WebApp) {
+        Telegram.WebApp.sendData(JSON.stringify({
+            time: timeSurvived
+        }));
+    }
+}
+</script>
+
+</body>
+</html>
