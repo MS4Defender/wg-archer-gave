@@ -10,79 +10,30 @@
     :root{
       --bg1:#0b1224;
       --bg2:#0f172a;
-      --panel:rgba(255,255,255,.06);
+      --panel:rgba(255,255,255,.10);
       --text:rgba(255,255,255,.92);
-      --muted:rgba(255,255,255,.70);
+      --muted:rgba(255,255,255,.72);
       --accent:#60a5fa;
       --danger:#ef4444;
       --ok:#22c55e;
     }
 
     *{box-sizing:border-box}
-    html,body{height:100%; margin:0; background:linear-gradient(180deg,var(--bg1),var(--bg2)); color:var(--text); font-family:Arial, sans-serif;}
-    body{overflow:hidden;}
+    html,body{height:100%; margin:0; background:linear-gradient(180deg,var(--bg1),var(--bg2)); overflow:hidden; font-family:Arial,sans-serif; color:var(--text);}
+    body{touch-action:manipulation;}
 
-    .app{
-      height:100%;
-      display:flex;
-      flex-direction:column;
-      padding:12px 12px calc(12px + env(safe-area-inset-bottom));
-      gap:10px;
-      max-width:980px;
-      margin:0 auto;
+    /* Игра всегда на весь экран мини-приложения */
+    #wrap{
+      position:fixed;
+      inset:0;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
     }
 
-    header{
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-      flex:0 0 auto;
-    }
-
-    .titleRow{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      font-weight:900;
-      letter-spacing:.4px;
-      font-size:22px;
-    }
-
-    .stats{
-      display:flex;
-      flex-wrap:wrap;
-      gap:8px;
-    }
-    .chip{
-      background:var(--panel);
-      border:1px solid rgba(255,255,255,.08);
-      padding:8px 10px;
-      border-radius:12px;
-      font-size:14px;
-      color:var(--muted);
-      display:flex;
-      gap:8px;
-      align-items:center;
-    }
-    .chip b{color:var(--text); font-weight:800}
-
-    .content{
-      flex:1 1 auto;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-      min-height:0;
-    }
-
-    .gameBox{
-      position:relative;
-      flex:1 1 auto;
-      background:linear-gradient(180deg,#0b1224,#0b1224);
-      border-radius:16px;
+    #gameBox{
+      position:absolute;
+      inset:0;
       overflow:hidden;
-      border:1px solid rgba(255,255,255,.08);
-      box-shadow:0 18px 55px rgba(0,0,0,.35);
-      min-height:260px;
+      background:linear-gradient(180deg,#0b1224,#0f172a);
     }
 
     canvas{
@@ -92,12 +43,44 @@
       touch-action:manipulation;
     }
 
-    .controlsRow{
+    /* UI поверх игры, не двигает canvas */
+    #hud{
+      position:absolute;
+      top:12px;
+      left:12px;
+      right:12px;
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+      pointer-events:none;
+    }
+
+    .chip{
+      pointer-events:none;
+      background:rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:14px;
+      padding:8px 10px;
+      font-size:14px;
+      color:var(--muted);
+      display:flex;
+      gap:6px;
+      align-items:center;
+      backdrop-filter: blur(6px);
+    }
+    .chip b{color:var(--text); font-weight:900}
+
+    #controls{
+      position:absolute;
+      left:12px;
+      right:12px;
+      bottom:12px;
       display:flex;
       gap:10px;
-      flex-wrap:wrap;
-      justify-content:flex-start;
       align-items:center;
+      justify-content:center;
+      pointer-events:auto;
     }
 
     button{
@@ -105,24 +88,19 @@
       border:none;
       color:#071021;
       font-weight:900;
-      padding:10px 14px;
-      border-radius:14px;
+      padding:12px 16px;
+      border-radius:16px;
       cursor:pointer;
-      font-size:14px;
+      font-size:15px;
+      min-width:140px;
     }
     button.secondary{
-      background:rgba(255,255,255,.10);
+      background:rgba(255,255,255,.12);
       color:var(--text);
-      border:1px solid rgba(255,255,255,.12);
+      border:1px solid rgba(255,255,255,.16);
     }
 
-    .hint{
-      color:rgba(255,255,255,.55);
-      font-size:13px;
-      line-height:1.35;
-    }
-
-    /* Overlay */
+    /* overlays */
     .overlay{
       position:absolute;
       inset:0;
@@ -134,115 +112,95 @@
       padding:16px;
     }
     .card{
-      width:min(520px, 100%);
-      background:rgba(15,23,42,.85);
-      border:1px solid rgba(255,255,255,.12);
+      width:min(560px, 92vw);
+      background:rgba(15,23,42,.88);
+      border:1px solid rgba(255,255,255,.14);
       border-radius:18px;
       padding:16px;
       box-shadow:0 18px 55px rgba(0,0,0,.45);
+      text-align:left;
     }
-    .card h2{margin:0 0 8px 0; font-size:20px}
-    .card p{margin:0 0 12px 0; color:var(--muted); font-size:14px; line-height:1.35}
-    .big{
-      font-size:16px;
-      font-weight:900;
-      color:var(--text);
-    }
-    .row{
-      display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;
-    }
+    .card h2{margin:0 0 10px 0; font-size:20px}
+    .card p{margin:0 0 10px 0; color:var(--muted); font-size:14px; line-height:1.35}
+    .row{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; justify-content:flex-start;}
 
-    /* Toast */
-    .toast{
+    /* toast */
+    #toast{
       position:absolute;
       left:50%;
-      bottom:14px;
+      bottom:78px;
       transform:translateX(-50%);
-      background:rgba(0,0,0,.70);
-      border:1px solid rgba(255,255,255,.12);
+      background:rgba(0,0,0,.75);
+      border:1px solid rgba(255,255,255,.16);
       padding:10px 12px;
       border-radius:14px;
-      font-weight:800;
-      color:var(--text);
+      font-weight:900;
       display:none;
       z-index:5;
+      max-width:92vw;
+      text-align:center;
     }
-    .toast.show{display:block;}
-    .toast.ok{border-color:rgba(34,197,94,.35)}
-    .toast.bad{border-color:rgba(239,68,68,.35)}
-
-    /* small screens */
-    @media (max-width:520px){
-      .titleRow{font-size:20px}
-      .chip{font-size:13px}
-    }
+    #toast.show{display:block;}
+    #toast.ok{border-color:rgba(34,197,94,.38)}
+    #toast.bad{border-color:rgba(239,68,68,.38)}
   </style>
 </head>
+
 <body>
-  <div class="app">
-    <header>
-      <div class="titleRow">🏹 WG Archer Run</div>
-      <div class="stats">
-        <div class="chip">⏱ <span>Время:</span> <b id="time">0.0</b> <span>сек</span></div>
-        <div class="chip">🏁 <span>Дистанция:</span> <b id="dist">0</b> <span>м</span></div>
-        <div class="chip">⚡ <span>Скорость:</span> <b id="spd">1.0</b><span>x</span></div>
+  <div id="wrap">
+    <div id="gameBox">
+      <canvas id="cv"></canvas>
+
+      <div id="hud">
+        <div class="chip">⏱ <b id="time">0.0</b> <span>сек</span></div>
+        <div class="chip">🏁 <b id="dist">0</b> <span>м</span></div>
+        <div class="chip">⚡ <b id="spd">1.0</b><span>x</span></div>
         <div class="chip">🏆 <span>Рекорд:</span> <b id="best">0</b> <span>м</span></div>
       </div>
-    </header>
 
-    <div class="content">
-      <div class="controlsRow">
+      <div id="controls">
         <button id="btnPlay">▶ Играть</button>
         <button id="btnReset" class="secondary">↻ Сброс</button>
-        <div class="hint">
-          Управление: <b>тап</b> / <b>клик</b> / <b>пробел</b> — прыжок. <br/>
-          Награды считаются по дистанции (метры). Позже подключим к боту.
-        </div>
       </div>
 
-      <div class="gameBox" id="gameBox">
-        <canvas id="cv"></canvas>
+      <div id="toast"></div>
 
-        <div class="toast" id="toast"></div>
-
-        <div class="overlay" id="overlayStart">
-          <div class="card">
-            <h2>Готов?</h2>
-            <p>Прыгай через препятствия. Ошибся — смерть, начинаешь заново.</p>
-            <p class="big">Цель: пройти как можно дальше 🏁</p>
-            <div class="row">
-              <button id="btnStart2">▶ Начать</button>
-              <button class="secondary" id="btnCloseTg">Закрыть</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="overlay" id="overlayOver" style="display:none;">
-          <div class="card">
-            <h2>💀 Game Over</h2>
-            <p>Ты врезался. Результат:</p>
-            <p class="big">🏁 <span id="overDist">0</span> м • ⏱ <span id="overTime">0.0</span> сек</p>
-            <p class="big">🎁 Награда: +<span id="overCoins">0</span> монет</p>
-            <div class="row">
-              <button id="btnRetry">▶ Играть ещё</button>
-              <button id="btnShare" class="secondary">Отправить результат</button>
-            </div>
+      <div class="overlay" id="overlayStart">
+        <div class="card">
+          <h2>🏹 WG Archer Run</h2>
+          <p>Тап по экрану = прыжок. Ошибся — смерть, начинаешь заново.</p>
+          <div class="row">
+            <button id="btnStart2">▶ Начать</button>
+            <button class="secondary" id="btnCloseTg">Закрыть</button>
           </div>
         </div>
       </div>
+
+      <div class="overlay" id="overlayOver" style="display:none;">
+        <div class="card">
+          <h2>💀 Game Over</h2>
+          <p><b>🏁 <span id="overDist">0</span> м</b> • ⏱ <span id="overTime">0.0</span> сек</p>
+          <p><b>🎁 Награда: +<span id="overCoins">0</span> монет</b></p>
+          <div class="row">
+            <button id="btnRetry">▶ Играть ещё</button>
+            <button id="btnShare" class="secondary">Отправить результат</button>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 
 <script>
 (() => {
-  // ===== Telegram WebApp (не ломает обычный браузер) =====
+  // Telegram expand
   const tg = window.Telegram?.WebApp;
   try {
     tg?.ready();
     tg?.expand();
   } catch(e){}
 
-  // ===== DOM =====
+  // DOM
   const cv = document.getElementById('cv');
   const ctx = cv.getContext('2d');
 
@@ -260,38 +218,46 @@
 
   const toast = document.getElementById('toast');
 
-  // ===== Assets =====
-  const archerImg = new Image();
-  archerImg.src = "archer.png"; // <-- твой файл в репозитории
+  // ===== Sprite sheet settings (6 кадров: 3x2) =====
+  const SPR_COLS = 3;
+  const SPR_ROWS = 2;
 
-  // ===== Resize (важно: canvas реального размера) =====
+  // Верхний ряд: бег (0,1,2)
+  const RUN_FRAMES = [0,1,2];
+  const RUN_FPS = 10; // скорость анимации бега
+
+  // Нижний ряд можно будет использовать потом для смерти (пока не надо)
+  // const DEAD_FRAMES = [3,4,5];
+
+  const archerImg = new Image();
+  archerImg.src = "archer.png";
+
+  // Resize canvas (реальный размер)
   function resize() {
     const rect = cv.getBoundingClientRect();
     const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
     cv.width  = Math.floor(rect.width * dpr);
     cv.height = Math.floor(rect.height * dpr);
-    ctx.setTransform(dpr,0,0,dpr,0,0); // рисуем в CSS-пикселях
+    ctx.setTransform(dpr,0,0,dpr,0,0);
   }
   window.addEventListener('resize', resize);
   resize();
 
   // ===== Game constants =====
-  const GROUND_H = 64;
-  const GRAVITY = 2200;       // px/s^2
-  const JUMP_V  = 760;        // px/s
+  const GROUND_H = 70;
+  const GRAVITY = 2400;
+  const JUMP_V  = 780;
   const MAX_FALL= 1400;
 
-  // скорость мира
-  let baseSpeed = 360;        // px/s
+  let baseSpeed = 380;
   let speedMul  = 1.0;
 
-  // баланс препятствий:
-  const MIN_GAP = 260;        // минимальная дистанция между препятствиями (px)
-  const MAX_GAP = 520;        // максимальная
-  const MIN_AFTER_BIG = 340;  // если был большой "столб", даём больше места
+  // баланс препятствий (без "невозможных стен")
+  const MIN_GAP = 300;
+  const MAX_GAP = 520;
+  const MIN_AFTER_TALL = 380;
 
-  // ===== Rewards by meters (потом поменяем) =====
-  // Выдается ОДИН РАЗ за прохождение порога (за ран в игре).
+  // Rewards (по метрам, пример)
   const rewardTable = [
     { m: 200,  coins: 50 },
     { m: 500,  coins: 100 },
@@ -299,104 +265,75 @@
     { m: 2000, coins: 500 },
     { m: 4000, coins: 1000 },
     { m: 8000, coins: 2000 },
-    { m: 12000, coins: 5000 } // условно "очень сложно"
+    { m: 12000, coins: 5000 }
   ];
 
-  // ===== State =====
+  // State
   let running = false;
   let lastTs = 0;
 
   let timeSec = 0;
-  let distanceM = 0;      // метры (условные)
-  let bestM = Number(localStorage.getItem('wg_best_m') || 0);
-
-  tBest.textContent = bestM;
-
+  let distanceM = 0;
   let coinsEarned = 0;
   let rewardsGiven = new Set();
+
+  let bestM = Number(localStorage.getItem('wg_best_m') || 0);
+  tBest.textContent = bestM;
 
   // Player
   const player = {
     x: 90,
     y: 0,
-    w: 52,
-    h: 52,
+    w: 62,     // размер спрайта на экране
+    h: 62,
     vy: 0,
     onGround: true
   };
 
   // Obstacles
   const obstacles = [];
-  function groundY() {
-    // координаты в CSS-пикселях
-    return cv.getBoundingClientRect().height - GROUND_H;
-  }
 
-  function resetRun() {
-    timeSec = 0;
-    distanceM = 0;
-    speedMul = 1.0;
-    coinsEarned = 0;
-    rewardsGiven = new Set();
+  function W(){ return cv.getBoundingClientRect().width; }
+  function H(){ return cv.getBoundingClientRect().height; }
+  function groundY(){ return H() - GROUND_H; }
 
-    obstacles.length = 0;
-    player.vy = 0;
-    player.onGround = true;
-    player.y = groundY() - player.h;
-
-    // стартовые препятствия не сразу в лицо
-    spawnObstacle(520);
-    spawnObstacle(520 + rand(MIN_GAP, MAX_GAP));
-  }
-
-  // ===== Helpers =====
   function rand(a,b){ return a + Math.random()*(b-a); }
   function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
 
   function showToast(text, type="ok", ms=1600){
     toast.textContent = text;
-    toast.className = "toast show " + (type==="bad" ? "bad":"ok");
+    toast.className = "";
+    toast.classList.add("show");
+    toast.classList.add(type === "bad" ? "bad" : "ok");
     clearTimeout(showToast._t);
-    showToast._t = setTimeout(()=>toast.className="toast", ms);
+    showToast._t = setTimeout(()=>{ toast.className=""; }, ms);
   }
 
-  // ===== Obstacles logic =====
   function spawnObstacle(offsetX) {
-    const H = cv.getBoundingClientRect().height;
-    const yGround = groundY();
+    const yG = groundY();
 
-    // тип: столб или яма (пока проще — столбы)
-    const isTall = Math.random() < 0.28;
+    const tall = Math.random() < 0.30;
+    const w = tall ? 36 : 30;
+    const h = tall ? rand(95, 130) : rand(54, 78);
 
-    const w = isTall ? 34 : 28;
-    const h = isTall ? rand(84, 120) : rand(46, 70);
-
-    const obs = {
-      x: (cv.getBoundingClientRect().width + (offsetX || 0)),
-      y: yGround - h,
+    obstacles.push({
+      x: W() + (offsetX || 0),
+      y: yG - h,
       w, h,
-      tall: isTall
-    };
-    obstacles.push(obs);
+      tall
+    });
   }
 
   function ensureObstacles() {
-    if (obstacles.length === 0) {
-      spawnObstacle(520);
-      return;
-    }
-    // если последнее препятствие слишком близко к краю — добавляем следующее
+    if (!obstacles.length) { spawnObstacle(520); return; }
     const last = obstacles[obstacles.length - 1];
-    const W = cv.getBoundingClientRect().width;
-
-    if (last.x < W + 240) {
-      const gapBase = rand(MIN_GAP, MAX_GAP);
-      const gap = last.tall ? Math.max(gapBase, MIN_AFTER_BIG) : gapBase;
+    if (last.x < W() + 240) {
+      const gap0 = rand(MIN_GAP, MAX_GAP);
+      const gap = last.tall ? Math.max(gap0, MIN_AFTER_TALL) : gap0;
       spawnObstacle(gap);
     }
   }
 
-  // ===== Collision =====
   function rectsOverlap(a,b){
     return a.x < b.x + b.w &&
            a.x + a.w > b.x &&
@@ -404,45 +341,53 @@
            a.y + a.h > b.y;
   }
 
-  // ===== Draw =====
+  // ===== Drawing =====
   function drawBackground() {
-    const W = cv.getBoundingClientRect().width;
-    const H = cv.getBoundingClientRect().height;
-
-    // небо
-    const g = ctx.createLinearGradient(0,0,0,H);
+    const w = W(), h = H();
+    const g = ctx.createLinearGradient(0,0,0,h);
     g.addColorStop(0,"#0b1224");
     g.addColorStop(1,"#0f172a");
     ctx.fillStyle = g;
-    ctx.fillRect(0,0,W,H);
+    ctx.fillRect(0,0,w,h);
 
     // земля
     ctx.fillStyle = "rgba(255,255,255,.06)";
-    ctx.fillRect(0, H - GROUND_H, W, GROUND_H);
-
-    // линия
-    ctx.fillStyle = "rgba(255,255,255,.12)";
-    ctx.fillRect(0, H - GROUND_H, W, 2);
-  }
-
-  function drawPlayer() {
-    // если картинка не успела загрузиться — рисуем квадрат-заглушку
-    if (!archerImg.complete || archerImg.naturalWidth === 0) {
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(player.x, player.y, player.w, player.h);
-      return;
-    }
-
-    // Рисуем арчера как одну картинку (без анимации пока)
-    ctx.drawImage(archerImg, player.x, player.y, player.w, player.h);
+    ctx.fillRect(0, h - GROUND_H, w, GROUND_H);
+    ctx.fillStyle = "rgba(255,255,255,.14)";
+    ctx.fillRect(0, h - GROUND_H, w, 2);
   }
 
   function drawObstacles() {
     ctx.fillStyle = "rgba(255,255,255,.85)";
-    for (const o of obstacles) {
-      // можно потом заменить на красивые спрайты
-      ctx.fillRect(o.x, o.y, o.w, o.h);
+    for (const o of obstacles) ctx.fillRect(o.x, o.y, o.w, o.h);
+  }
+
+  // Рисуем 1 кадр спрайта
+  function drawSpriteFrame(frameIndex, dx, dy, dw, dh){
+    if (!archerImg.complete || archerImg.naturalWidth === 0) {
+      ctx.fillStyle="#fff";
+      ctx.fillRect(dx,dy,dw,dh);
+      return;
     }
+
+    const sw = archerImg.naturalWidth / SPR_COLS;
+    const sh = archerImg.naturalHeight / SPR_ROWS;
+
+    const col = frameIndex % SPR_COLS;
+    const row = Math.floor(frameIndex / SPR_COLS);
+
+    const sx = col * sw;
+    const sy = row * sh;
+
+    ctx.drawImage(archerImg, sx, sy, sw, sh, dx, dy, dw, dh);
+  }
+
+  function drawPlayer(runAnimTime) {
+    // анимация бега по кадрам верхней линии
+    const idx = Math.floor(runAnimTime * RUN_FPS) % RUN_FRAMES.length;
+    const frame = RUN_FRAMES[idx];
+
+    drawSpriteFrame(frame, player.x, player.y, player.w, player.h);
   }
 
   // ===== Rewards =====
@@ -451,84 +396,29 @@
       if (distanceM >= r.m && !rewardsGiven.has(r.m)) {
         rewardsGiven.add(r.m);
         coinsEarned += r.coins;
-        showToast(`✅ Награда: +${r.coins} монет (за ${r.m} м)`, "ok");
+        showToast(`✅ +${r.coins} монет (за ${r.m} м)`, "ok");
       }
     }
   }
 
-  // ===== Main update =====
-  function update(dt) {
-    const W = cv.getBoundingClientRect().width;
-    const H = cv.getBoundingClientRect().height;
-    const yGround = groundY();
+  // ===== Run control =====
+  function resetRun() {
+    timeSec = 0;
+    distanceM = 0;
+    coinsEarned = 0;
+    rewardsGiven = new Set();
+    speedMul = 1.0;
 
-    // ускорение со временем (очень мягко)
-    speedMul = 1.0 + Math.min(0.9, timeSec / 90); // через 90 сек ~1.9x
-    const worldSpeed = baseSpeed * speedMul;
+    obstacles.length = 0;
 
-    // физика игрока
-    player.vy += GRAVITY * dt;
-    player.vy = clamp(player.vy, -99999, MAX_FALL);
-    player.y += player.vy * dt;
+    player.vy = 0;
+    player.onGround = true;
+    player.y = groundY() - player.h;
 
-    if (player.y >= yGround - player.h) {
-      player.y = yGround - player.h;
-      player.vy = 0;
-      player.onGround = true;
-    }
-
-    // движение препятствий
-    for (const o of obstacles) o.x -= worldSpeed * dt;
-
-    // чистим ушедшие
-    while (obstacles.length && obstacles[0].x + obstacles[0].w < -50) {
-      obstacles.shift();
-    }
-
-    ensureObstacles();
-
-    // коллизия
-    const pRect = {x: player.x, y: player.y, w: player.w, h: player.h};
-    for (const o of obstacles) {
-      if (rectsOverlap(pRect, o)) {
-        gameOver();
-        return;
-      }
-    }
-
-    // метры: считаем из пройденных пикселей (примерно)
-    // 1 метр ~ 25px на базовой скорости
-    distanceM += (worldSpeed * dt) / 25;
-    timeSec += dt;
-
-    // UI
-    tTime.textContent = timeSec.toFixed(1);
-    tDist.textContent = Math.floor(distanceM);
-    tSpd.textContent  = (speedMul).toFixed(1);
-
-    checkRewards();
-
-    // draw
-    drawBackground();
-    drawObstacles();
-    drawPlayer();
+    spawnObstacle(640);
+    spawnObstacle(640 + rand(MIN_GAP, MAX_GAP));
   }
 
-  function loop(ts) {
-    if (!running) return;
-    const now = ts / 1000;
-    const prev = lastTs || now;
-    let dt = now - prev;
-    lastTs = now;
-
-    // защита от лагов/сворачивания
-    dt = Math.min(dt, 0.035);
-
-    update(dt);
-    requestAnimationFrame(loop);
-  }
-
-  // ===== Controls =====
   function jump() {
     if (!running) return;
     if (!player.onGround) return;
@@ -566,19 +456,84 @@
     running = false;
     overlayOver.style.display = "none";
     overlayStart.style.display = "flex";
+
     tTime.textContent = "0.0";
     tDist.textContent = "0";
     tSpd.textContent  = "1.0";
+
     drawBackground();
     drawObstacles();
-    drawPlayer();
+    drawSpriteFrame(0, player.x, groundY()-player.h, player.w, player.h);
   }
 
-  // ===== Buttons =====
+  // ===== Main loop =====
+  function update(dt) {
+    // мягкое ускорение (чтобы не было ада)
+    speedMul = 1.0 + Math.min(0.8, timeSec / 120); // через 120 сек ~1.8x
+    const worldSpeed = baseSpeed * speedMul;
+
+    // physics
+    player.vy += GRAVITY * dt;
+    player.vy = clamp(player.vy, -99999, MAX_FALL);
+    player.y += player.vy * dt;
+
+    const yG = groundY();
+    if (player.y >= yG - player.h) {
+      player.y = yG - player.h;
+      player.vy = 0;
+      player.onGround = true;
+    }
+
+    // obstacles move
+    for (const o of obstacles) o.x -= worldSpeed * dt;
+    while (obstacles.length && obstacles[0].x + obstacles[0].w < -60) obstacles.shift();
+    ensureObstacles();
+
+    // collision
+    const pRect = {x: player.x, y: player.y, w: player.w, h: player.h};
+    for (const o of obstacles) {
+      if (rectsOverlap(pRect, o)) { gameOver(); return; }
+    }
+
+    // meters
+    distanceM += (worldSpeed * dt) / 25;
+    timeSec += dt;
+
+    // UI
+    tTime.textContent = timeSec.toFixed(1);
+    tDist.textContent = Math.floor(distanceM);
+    tSpd.textContent  = (speedMul).toFixed(1);
+
+    checkRewards();
+
+    // draw
+    drawBackground();
+    drawObstacles();
+    drawPlayer(timeSec);
+  }
+
+  function loop(ts) {
+    if (!running) return;
+    const now = ts / 1000;
+    const prev = lastTs || now;
+    let dt = now - prev;
+    lastTs = now;
+    dt = Math.min(dt, 0.035);
+
+    update(dt);
+    requestAnimationFrame(loop);
+  }
+
+  // ===== Controls (ТОЛЬКО ТАП) =====
+  cv.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    jump();
+  }, {passive:false});
+
+  // Buttons
   document.getElementById('btnPlay').addEventListener('click', startGame);
   document.getElementById('btnStart2').addEventListener('click', startGame);
   document.getElementById('btnRetry').addEventListener('click', startGame);
-
   document.getElementById('btnReset').addEventListener('click', resetAll);
 
   document.getElementById('btnCloseTg').addEventListener('click', () => {
@@ -587,25 +542,20 @@
 
   document.getElementById('btnShare').addEventListener('click', () => {
     const d = Math.floor(distanceM);
-    const msg = `🏹 WG Archer Run\n🏁 Дистанция: ${d} м\n🎁 Награда: +${coinsEarned} монет`;
     try {
-      // В WebApp можно отправить данные в бота:
-      tg?.sendData(JSON.stringify({ type:"run_result", distance:d, coins:coinsEarned, time: Number(timeSec.toFixed(1)) }));
+      tg?.sendData(JSON.stringify({
+        type:"run_result",
+        distance:d,
+        coins:coinsEarned,
+        time:Number(timeSec.toFixed(1))
+      }));
       showToast("Отправлено боту ✅", "ok");
     } catch(e) {
-      // fallback для браузера
-      navigator.clipboard?.writeText(msg);
-      showToast("Скопировано ✅", "ok");
+      showToast("Не удалось отправить (браузер) ❗", "bad");
     }
   });
 
-  // input
-  window.addEventListener('keydown', (e) => {
-    if (e.code === 'Space') { e.preventDefault(); jump(); }
-  });
-  cv.addEventListener('pointerdown', () => jump());
-
-  // стартовый рендер
+  // first render
   resetAll();
 })();
 </script>
