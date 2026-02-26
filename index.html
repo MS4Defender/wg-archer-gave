@@ -42,40 +42,36 @@
 let tg = null;
 let tgUserId = "guest";
 let tgUserName = "guest";
-
 try{
   tg = Telegram.WebApp;
   tg.ready();
   tg.expand();
   tg.disableVerticalSwipes?.();
-
   const u = tg.initDataUnsafe?.user;
   if (u?.id) tgUserId = String(u.id);
   tgUserName = u?.username ? "@"+u.username : (u?.first_name || "player");
-} catch(e){}
+}catch(e){}
 
-/* Canvas + DPR (чтобы на iPhone было нормально) */
+/* Canvas — ВАЖНО: БЕЗ DPR (фикс iPhone Telegram масштаба) */
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
 function resize(){
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
-  canvas.width = Math.floor(window.innerWidth * dpr);
-  canvas.height = Math.floor(window.innerHeight * dpr);
-  ctx.setTransform(dpr,0,0,dpr,0,0);
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
 }
 window.addEventListener("resize", resize);
 resize();
 
-/* Build marker — чтобы понимать, что обновилось */
-const BUILD = "BUILD 2026-02-21 v2";
+/* Build marker */
+const BUILD = "BUILD 2026-02-21 v3";
 
 /* Storage */
 let best = Number(localStorage.getItem("wg_best_m") || 0);
 let coins = Number(localStorage.getItem("wg_coins") || 0);
-let lb = JSON.parse(localStorage.getItem("wg_lb10") || "[]"); // [{m,ts}]
+let lb = JSON.parse(localStorage.getItem("wg_lb10") || "[]");
 
-/* ====== НАГРАДЫ: ОДИН РАЗ НА ИГРОКА (навсегда) ====== */
+/* Rewards: 1 раз на игрока */
 const KEY_CLAIMED = `wg_claimed_${tgUserId}`;
 let claimed = new Set(JSON.parse(localStorage.getItem(KEY_CLAIMED) || "[]"));
 function claimOnce(milestone){
@@ -101,7 +97,7 @@ const GROUND_H = 120;
 const GRAVITY = 2700;
 const JUMP_V  = 980;
 
-function groundY(){ return canvas.height / (window.devicePixelRatio||1) - GROUND_H; }
+function groundY(){ return canvas.height - GROUND_H; }
 
 const player = {
   x: 90, y: 0,
@@ -111,23 +107,20 @@ const player = {
   animT: 0
 };
 
-/* ====== SPRITE: “убираем чёрный фон” программно ====== */
-/* Sprite sheet 3x3 */
+/* Sprite: вырезаем тёмный фон */
 const sprite = new Image();
 sprite.src = "archer.png";
 sprite.crossOrigin = "anonymous";
 
 let spriteReady = false;
 let frameW = 0, frameH = 0;
-
-let spriteCut = null;      // canvas с вырезанным фоном
+let spriteCut = null;
 let spriteCutCtx = null;
 
 sprite.onload = () => {
   frameW = Math.floor(sprite.width / 3);
   frameH = Math.floor(sprite.height / 3);
 
-  // делаем копию и вырезаем почти-чёрные пиксели в прозрачность
   spriteCut = document.createElement("canvas");
   spriteCut.width = sprite.width;
   spriteCut.height = sprite.height;
@@ -137,17 +130,12 @@ sprite.onload = () => {
   const img = spriteCutCtx.getImageData(0, 0, spriteCut.width, spriteCut.height);
   const d = img.data;
 
-  // порог “чёрного” — можно подкрутить
-  const TH = 35; // чем больше, тем больше “убьём” тёмных пикселей
+  const TH = 45; // порог “почти чёрного” (можно поднять, если фон ещё виден)
   for (let i=0; i<d.length; i+=4){
     const r=d[i], g=d[i+1], b=d[i+2];
-    // если пиксель очень тёмный — делаем прозрачным
-    if (r < TH && g < TH && b < TH){
-      d[i+3] = 0;
-    }
+    if (r < TH && g < TH && b < TH) d[i+3] = 0;
   }
   spriteCutCtx.putImageData(img, 0, 0);
-
   spriteReady = true;
 };
 
@@ -159,17 +147,11 @@ function drawSprite(row, col, x, y, w, h){
   }
   const sx = col * frameW;
   const sy = row * frameH;
-
-  // чуть-чуть “обрезаем края” внутри кадра, чтобы убрать рамку
   const pad = 4;
-  ctx.drawImage(
-    spriteCut,
-    sx + pad, sy + pad, frameW - pad*2, frameH - pad*2,
-    x, y, w, h
-  );
+  ctx.drawImage(spriteCut, sx+pad, sy+pad, frameW-pad*2, frameH-pad*2, x, y, w, h);
 }
 
-/* Obstacles — спавн таймером + защита от “слишком близко” */
+/* Obstacles */
 const obstacles = [];
 let spawnTimer = 0;
 
@@ -178,8 +160,8 @@ function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
 
 function gapSeconds(){
   const t = clamp(distance / 3500, 0, 1);
-  const minS = 0.95 - 0.35*t;  // 0.95 -> 0.60
-  const maxS = 1.45 - 0.45*t;  // 1.45 -> 1.00
+  const minS = 0.9 - 0.35*t;
+  const maxS = 1.4 - 0.45*t;
   return minS + Math.random() * (maxS - minS);
 }
 
@@ -187,18 +169,11 @@ function spawnObstacle(worldSpeed){
   const w = 54;
   const h = randInt(75, 140);
 
-  // минимальная дистанция между препятствиями (чтобы не было “невозможно”)
   const last = obstacles[obstacles.length-1];
-  const minGapPx = Math.max(230, worldSpeed * 0.65); // 0.65 сек “окно”
-  if (last && (canvas.width/(window.devicePixelRatio||1) + 80) - last.x < minGapPx){
-    return false; // рано, подождём
-  }
+  const minGapPx = Math.max(230, worldSpeed * 0.65);
+  if (last && (canvas.width + 80) - last.x < minGapPx) return false;
 
-  obstacles.push({
-    x: canvas.width/(window.devicePixelRatio||1) + 80,
-    y: groundY() - h,
-    w, h
-  });
+  obstacles.push({ x: canvas.width + 80, y: groundY() - h, w, h });
   return true;
 }
 
@@ -209,6 +184,9 @@ const rewards = [
   { m: 1000, coins: 300 },
   { m: 2000, coins: 700 }
 ];
+
+let flashText = "";
+let flashT = 0;
 
 function checkRewards(){
   for(const r of rewards){
@@ -221,10 +199,6 @@ function checkRewards(){
     }
   }
 }
-
-/* HUD text flash */
-let flashText = "";
-let flashT = 0;
 
 /* Speed */
 let BASE_SPEED = 520;
@@ -239,8 +213,7 @@ function resetRun(){
   player.animT = 0;
 
   obstacles.length = 0;
-
-  spawnTimer = 0.6; // быстрое первое препятствие
+  spawnTimer = 0.6;
   BASE_SPEED = 520;
 }
 
@@ -250,7 +223,6 @@ function startGame(){
 }
 
 function sendScoreToBot(m){
-  // Это для будущего “глобального ТОПа”
   try{
     tg?.sendData?.(JSON.stringify({
       type: "wg_archer_score",
@@ -277,11 +249,10 @@ function endGame(){
   lb = lb.slice(0,10);
   localStorage.setItem("wg_lb10", JSON.stringify(lb));
 
-  // отправка рекорда боту (чтобы ты потом сделал общий топ)
   sendScoreToBot(m);
 }
 
-/* Input: TAP only */
+/* TAP only */
 function tap(e){
   try{ e.preventDefault?.(); }catch(_){}
   if(state === "menu" || state === "over"){ startGame(); return; }
@@ -296,20 +267,14 @@ window.addEventListener("pointerdown", tap, { passive:false });
 
 /* Buttons */
 btnStart.onclick = () => startGame();
-
-btnTop.onclick = () => {
-  state = (state === "top") ? "menu" : "top";
-};
-
+btnTop.onclick = () => { state = (state === "top") ? "menu" : "top"; };
 btnReset.onclick = () => {
   localStorage.removeItem("wg_best_m");
   localStorage.removeItem("wg_lb10");
   localStorage.removeItem("wg_coins");
   localStorage.removeItem(KEY_CLAIMED);
-
   best = 0; coins = 0; lb = [];
   claimed = new Set();
-
   state = "menu";
 };
 
@@ -327,8 +292,8 @@ function loop(now){
   const dt = Math.min(0.033, (now-last)/1000);
   last = now;
 
-  const W = canvas.width/(window.devicePixelRatio||1);
-  const H = canvas.height/(window.devicePixelRatio||1);
+  const W = canvas.width;
+  const H = canvas.height;
 
   // background
   ctx.clearRect(0,0,W,H);
@@ -339,33 +304,37 @@ function loop(now){
   ctx.fillStyle = "rgba(20,45,75,0.95)";
   ctx.fillRect(0, groundY(), W, GROUND_H);
 
-  // HUD
+  // responsive fonts (чтобы не раздувало)
+  const fSmall = Math.max(12, Math.min(16, W/26));
+  const fMain  = Math.max(16, Math.min(22, W/18));
+
   const safeTop = 12 + (window.visualViewport?.offsetTop || 0);
-  ctx.font = "700 16px system-ui, -apple-system, Arial";
+
+  ctx.font = `800 ${fSmall}px system-ui, -apple-system, Arial`;
   ctx.fillStyle = "rgba(255,255,255,.95)";
-  ctx.fillText(BUILD, 12, safeTop + 18);
+  ctx.fillText(BUILD, 12, safeTop + fSmall + 2);
 
   if(state === "play" || state === "over"){
-    ctx.font = "900 22px system-ui, -apple-system, Arial";
-    ctx.fillText(`Дистанция: ${Math.floor(distance)} м`, 12, safeTop + 50);
-    ctx.fillText(`Рекорд: ${best} м`, 12, safeTop + 80);
-    ctx.fillText(`Монеты: ${coins}`, 12, safeTop + 110);
+    ctx.font = `1000 ${fMain}px system-ui, -apple-system, Arial`;
+    ctx.fillText(`Дистанция: ${Math.floor(distance)} м`, 12, safeTop + 52);
+    ctx.fillText(`Рекорд: ${best} м`, 12, safeTop + 52 + fMain*1.25);
+    ctx.fillText(`Монеты: ${coins}`, 12, safeTop + 52 + fMain*2.5);
   }
 
   if(flashT > 0){
     flashT -= dt;
-    ctx.font = "1000 18px system-ui, -apple-system, Arial";
+    ctx.font = `1000 ${Math.max(14, fMain-2)}px system-ui, -apple-system, Arial`;
     ctx.fillStyle = "rgba(255,255,255,.98)";
-    ctx.fillText(flashText, 12, safeTop + 140);
+    ctx.fillText(flashText, 12, safeTop + 52 + fMain*3.7);
   }
 
   if(state === "top"){
     drawTextBox(12, safeTop + 50, Math.min(520, W-24), 340);
     ctx.fillStyle = "#fff";
-    ctx.font = "1000 22px system-ui, -apple-system, Arial";
-    ctx.fillText("ТОП-10 (локально на устройстве)", 24, safeTop + 82);
+    ctx.font = `1000 ${Math.max(18, fMain)}px system-ui, -apple-system, Arial`;
+    ctx.fillText("ТОП-10 (локально)", 24, safeTop + 82);
 
-    ctx.font = "900 18px system-ui, -apple-system, Arial";
+    ctx.font = `900 ${Math.max(14, fSmall+2)}px system-ui, -apple-system, Arial`;
     if(lb.length === 0){
       ctx.fillText("Пока пусто — сыграй первый раз.", 24, safeTop + 120);
     } else {
@@ -373,11 +342,6 @@ function loop(now){
         ctx.fillText(`#${i+1} — ${lb[i].m} м`, 24, safeTop + 120 + i*24);
       }
     }
-
-    ctx.font = "800 14px system-ui, -apple-system, Arial";
-    ctx.fillStyle = "rgba(255,255,255,.8)";
-    ctx.fillText("Глобальный ТОП сделаем через бота (sendData уже добавлен).", 24, safeTop + 320);
-
     requestAnimationFrame(loop);
     return;
   }
@@ -389,11 +353,10 @@ function loop(now){
   if(state === "play"){
     distance += (worldSpeed * dt) / 6.8;
 
-    // spawn
     spawnTimer -= dt;
     if(spawnTimer <= 0){
       const ok = spawnObstacle(worldSpeed);
-      spawnTimer = ok ? Math.max(0.60, gapSeconds()) : 0.15; // если близко — попробуем через 0.15с
+      spawnTimer = ok ? Math.max(0.60, gapSeconds()) : 0.15;
     }
 
     // physics
@@ -433,7 +396,7 @@ function loop(now){
     ctx.fillRect(o.x, o.y, o.w, o.h);
   }
 
-  // draw player animation: row0 run, row1 jump, row2 death
+  // player anim: 0 run, 1 jump, 2 death
   let row=0, col=0;
   if(state === "over"){ row=2; col=0; }
   else if(!player.onGround){ row=1; col=0; }
@@ -444,20 +407,19 @@ function loop(now){
   }
   drawSprite(row, col, player.x, player.y, player.w, player.h);
 
-  // game over overlay
   if(state === "over"){
-    drawTextBox(12, safeTop + 170, Math.min(520, W-24), 120);
+    const boxW = Math.min(560, W-24);
+    drawTextBox(12, safeTop + 180, boxW, 120);
     ctx.fillStyle = "#fff";
-    ctx.font = "1000 26px system-ui, -apple-system, Arial";
-    ctx.fillText("GAME OVER", 24, safeTop + 205);
-    ctx.font = "900 18px system-ui, -apple-system, Arial";
-    ctx.fillText(`Забег: ${Math.floor(distance)} м  |  +${earnedThisRun} монет`, 24, safeTop + 235);
-    ctx.fillText("Тап — начать заново", 24, safeTop + 260);
+    ctx.font = `1000 ${Math.max(22, fMain+4)}px system-ui, -apple-system, Arial`;
+    ctx.fillText("GAME OVER", 24, safeTop + 215);
+    ctx.font = `900 ${Math.max(14, fSmall+2)}px system-ui, -apple-system, Arial`;
+    ctx.fillText(`Забег: ${Math.floor(distance)} м  |  +${earnedThisRun} монет`, 24, safeTop + 245);
+    ctx.fillText("Тап — начать заново", 24, safeTop + 270);
   }
 
   requestAnimationFrame(loop);
 }
-
 requestAnimationFrame(loop);
 </script>
 </body>
