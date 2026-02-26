@@ -2,24 +2,15 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>WG Archer Run</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    html, body {
-      margin:0; height:100%;
-      background:#071a33;
-      overflow:hidden;
-      font-family: system-ui, -apple-system, Arial;
-      -webkit-text-size-adjust: 100%;
-    }
+    html, body { margin:0; height:100%; background:#071a33; overflow:hidden; font-family: system-ui, -apple-system, Arial; }
     #root{ position:fixed; inset:0; background: linear-gradient(#0b2548,#071a33); }
-    canvas{
-      position:absolute; inset:0;
-      width:100%; height:100%;
-      display:block;
-      touch-action:none;
-    }
+    canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+
+    /* Кнопки — чтобы точно были видны */
     #btnBar{
       position:absolute; left:12px; right:12px;
       bottom: calc(14px + env(safe-area-inset-bottom));
@@ -57,50 +48,37 @@ try{
 
 /* Canvas */
 const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d", { alpha: true });
+const ctx = canvas.getContext("2d");
 
-let VW = 0, VH = 0, DPR = 1;
-
-function resize(){
-  // 1) Берём размеры из Telegram (самое стабильное внутри мини-аппа)
-  let w = window.innerWidth;
-  let h = window.innerHeight;
+/* ✅ FIX #1: супер-стабильный resize для Telegram/iOS/Android (без DPR, без scale) */
+function getStableSize(){
+  let w = Math.floor(window.innerWidth);
+  let h = Math.floor(window.innerHeight);
 
   try{
-    if (window.Telegram?.WebApp){
-      // stableHeight — ключ к iOS, где innerHeight часто врёт
-      if (Telegram.WebApp.viewportStableHeight) h = Telegram.WebApp.viewportStableHeight;
-      if (Telegram.WebApp.viewportHeight) h = Math.min(h, Telegram.WebApp.viewportHeight);
+    if (window.Telegram?.WebApp?.viewportStableHeight){
+      h = Math.floor(Telegram.WebApp.viewportStableHeight);
     }
-  } catch(e){}
+  }catch(e){}
 
-  // 2) visualViewport — подстраховка, + вытаскиваем scale (iOS zoom)
-  const vv = window.visualViewport;
-  const scale = vv?.scale || 1;
-  if (vv?.width && vv?.height){
-    w = vv.width;
-    h = vv.height;
-  }
+  w = Math.max(320, w);
+  h = Math.max(420, h);
+  return {w, h};
+}
 
-  // 3) DPR учитывает zoom-scale (это фиксит гигантские шрифты на iPhone)
-  DPR = Math.max(1, Math.min(3, (window.devicePixelRatio || 1) * scale));
+function resize(){
+  const s = getStableSize();
+  canvas.width  = s.w;
+  canvas.height = s.h;
 
-  VW = Math.floor(w);
-  VH = Math.floor(h);
-
-  canvas.width  = Math.floor(VW * DPR);
-  canvas.height = Math.floor(VH * DPR);
-
-  // Рисуем в CSS-пикселях
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // на всякий — сброс любых трансформаций (чтобы не было “гигантского квадрата”)
+  ctx.setTransform(1,0,0,1,0,0);
 }
 window.addEventListener("resize", resize);
-window.visualViewport?.addEventListener("resize", resize);
-window.visualViewport?.addEventListener("scroll", resize);
 resize();
 
-/* Build marker */
-const BUILD = "BUILD 2026-02-21 v4 TELEGRAM-SAFE";
+/* Build marker — чтобы понять, обновился ли код */
+const BUILD = "BUILD 2026-02-21 v4";
 
 /* Storage */
 let best = Number(localStorage.getItem("wg_best_m") || 0);
@@ -122,7 +100,7 @@ const GROUND_H = 120;
 const GRAVITY = 2700;
 const JUMP_V  = 980;
 
-function groundY(){ return VH - GROUND_H; }
+function groundY(){ return canvas.height - GROUND_H; }
 
 const player = {
   x: 90, y: 0,
@@ -164,15 +142,16 @@ function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
 
 function gapSeconds(){
   const t = clamp(distance / 3500, 0, 1);
-  const minS = 1.1 - 0.45*t;
-  const maxS = 1.8 - 0.55*t;
+  const minS = 1.1 - 0.45*t;   // 1.1 -> 0.65
+  const maxS = 1.8 - 0.55*t;   // 1.8 -> 1.25
   return minS + Math.random() * (maxS - minS);
 }
+
 function spawnObstacle(){
   const w = 54;
   const h = randInt(75, 140);
   obstacles.push({
-    x: VW + 80,
+    x: canvas.width + 80,
     y: groundY() - h,
     w, h
   });
@@ -200,7 +179,7 @@ function checkRewards(){
   }
 }
 
-/* HUD flash */
+/* HUD text flash */
 let flashText = "";
 let flashT = 0;
 
@@ -222,7 +201,11 @@ function resetRun(){
   spawnTimer = 0.8;
   BASE_SPEED = 520;
 }
-function startGame(){ state = "play"; resetRun(); }
+
+function startGame(){
+  state = "play";
+  resetRun();
+}
 
 function endGame(){
   state = "over";
@@ -254,7 +237,11 @@ window.addEventListener("pointerdown", tap, { passive:false });
 
 /* Buttons */
 btnStart.onclick = () => startGame();
-btnTop.onclick = () => { state = (state === "top") ? "menu" : "top"; };
+
+btnTop.onclick = () => {
+  state = (state === "top") ? "menu" : "top";
+};
+
 btnReset.onclick = () => {
   localStorage.removeItem("wg_best_m");
   localStorage.removeItem("wg_lb10");
@@ -278,47 +265,49 @@ function loop(now){
   last = now;
 
   // background
-  ctx.clearRect(0,0,VW,VH);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = "rgba(0,0,0,0.10)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
   // ground
   ctx.fillStyle = "rgba(20,45,75,0.95)";
-  ctx.fillRect(0, groundY(), VW, GROUND_H);
+  ctx.fillRect(0, groundY(), canvas.width, GROUND_H);
 
-  // HUD — адаптивный, но без “гигантизма”
-  const hudBig = clamp(VW * 0.055, 16, 24);
-  const hudSmall = clamp(VW * 0.035, 12, 16);
-
+  // ✅ FIX #2: универсальные шрифты (не будут гигантскими на iPhone)
   const safeTop = 12;
-  ctx.font = `800 ${hudSmall}px system-ui, -apple-system, Arial`;
+  const hud  = Math.max(12, Math.min(18, Math.floor(canvas.width * 0.045))); // 12..18
+  const hud2 = Math.max(16, Math.min(22, Math.floor(canvas.width * 0.055))); // 16..22
+
+  ctx.font = `800 ${hud}px system-ui, -apple-system, Arial`;
   ctx.fillStyle = "rgba(255,255,255,.95)";
-  ctx.fillText(BUILD, 12, safeTop + hudSmall);
+  ctx.fillText(BUILD, 12, safeTop + hud);
 
   if(state === "play" || state === "over"){
-    ctx.font = `1000 ${hudBig}px system-ui, -apple-system, Arial`;
-    ctx.fillText(`Дистанция: ${Math.floor(distance)} м`, 12, safeTop + hudSmall + hudBig + 12);
-    ctx.fillText(`Рекорд: ${best} м`, 12, safeTop + hudSmall + hudBig*2 + 20);
-    ctx.fillText(`Монеты: ${coins}`, 12, safeTop + hudSmall + hudBig*3 + 28);
+    ctx.font = `1000 ${hud2}px system-ui, -apple-system, Arial`;
+    ctx.fillText(`Дистанция: ${Math.floor(distance)} м`, 12, safeTop + hud2 + 22);
+    ctx.fillText(`Рекорд: ${best} м`, 12, safeTop + hud2 + 52);
+    ctx.fillText(`Монеты: ${coins}`, 12, safeTop + hud2 + 82);
   }
 
   if(flashT > 0){
     flashT -= dt;
-    ctx.font = `900 ${hudSmall}px system-ui, -apple-system, Arial`;
+    ctx.font = `1000 ${hud2}px system-ui, -apple-system, Arial`;
     ctx.fillStyle = "rgba(255,255,255,.98)";
-    ctx.fillText(flashText, 12, safeTop + hudSmall + hudBig*3 + 55);
+    ctx.fillText(flashText, 12, safeTop + hud2 + 112);
   }
 
   if(state === "top"){
-    drawTextBox(12, safeTop + 70, Math.min(520, VW-24), 320);
+    drawTextBox(12, safeTop + 50, Math.min(520, canvas.width-24), 320);
     ctx.fillStyle = "#fff";
-    ctx.font = `1000 ${hudBig}px system-ui, -apple-system, Arial`;
-    ctx.fillText("ТОП-10", 24, safeTop + 105);
+    ctx.font = `1000 ${Math.max(18, hud2)}px system-ui, -apple-system, Arial`;
+    ctx.fillText("ТОП-10", 24, safeTop + 82);
 
-    ctx.font = `900 ${hudSmall}px system-ui, -apple-system, Arial`;
+    ctx.font = `900 ${Math.max(14, hud)}px system-ui, -apple-system, Arial`;
     if(lb.length === 0){
-      ctx.fillText("Пока пусто — сыграй первый раз.", 24, safeTop + 140);
+      ctx.fillText("Пока пусто — сыграй первый раз.", 24, safeTop + 120);
     } else {
       for(let i=0;i<lb.length;i++){
-        ctx.fillText(`#${i+1} — ${lb[i].m} м`, 24, safeTop + 140 + i*22);
+        ctx.fillText(`#${i+1} — ${lb[i].m} м`, 24, safeTop + 120 + i*24);
       }
     }
     requestAnimationFrame(loop);
@@ -376,7 +365,7 @@ function loop(now){
     ctx.fillRect(o.x, o.y, o.w, o.h);
   }
 
-  // player animation
+  // draw player animation: 0 row run, 1 jump, 2 death
   let row=0, col=0;
   if(state === "over"){ row=2; col=0; }
   else if(!player.onGround){ row=1; col=0; }
@@ -387,15 +376,15 @@ function loop(now){
   }
   drawSprite(row, col, player.x, player.y, player.w, player.h);
 
-  // game over text
+  // game over text on canvas
   if(state === "over"){
-    drawTextBox(12, safeTop + 220, Math.min(520, VW-24), 120);
+    drawTextBox(12, safeTop + 170, Math.min(520, canvas.width-24), 120);
     ctx.fillStyle = "#fff";
-    ctx.font = `1000 ${hudBig+4}px system-ui, -apple-system, Arial`;
-    ctx.fillText("GAME OVER", 24, safeTop + 255);
-    ctx.font = `900 ${hudSmall}px system-ui, -apple-system, Arial`;
-    ctx.fillText(`Забег: ${Math.floor(distance)} м  |  +${earnedThisRun} монет`, 24, safeTop + 280);
-    ctx.fillText("Тап — начать заново", 24, safeTop + 302);
+    ctx.font = `1000 ${Math.max(22, hud2)}px system-ui, -apple-system, Arial`;
+    ctx.fillText("GAME OVER", 24, safeTop + 205);
+    ctx.font = `900 ${Math.max(14, hud)}px system-ui, -apple-system, Arial`;
+    ctx.fillText(`Забег: ${Math.floor(distance)} м  |  +${earnedThisRun} монет`, 24, safeTop + 235);
+    ctx.fillText("Тап — начать заново", 24, safeTop + 260);
   }
 
   requestAnimationFrame(loop);
