@@ -12,20 +12,40 @@
 
     /* HUD */
     #hud{
-      position:absolute; left:12px; top:12px; right:12px;
+      position:absolute;
+      left:12px; right:12px;
+      top: calc(12px + env(safe-area-inset-top));
       display:flex; gap:10px; flex-wrap:wrap;
       z-index:5;
       pointer-events:none;
     }
     .chip{
       display:inline-flex; gap:8px; align-items:center;
-      padding:8px 10px; border-radius:14px;
-      background: rgba(0,0,0,.35);
-      color:#fff; font-weight:800;
-      border: 1px solid rgba(255,255,255,.10);
-      backdrop-filter: blur(8px);
+      padding:10px 12px; border-radius:16px;
+      background: rgba(0,0,0,.55);
+      color:#fff; font-weight:900;
+      border: 1px solid rgba(255,255,255,.16);
+      backdrop-filter: blur(10px);
+      font-size:18px;
+      text-shadow: 0 1px 2px rgba(0,0,0,.6);
     }
-    .muted{ opacity:.85; font-weight:700; }
+    .muted{ opacity:.9; font-weight:800; }
+
+    /* Top button */
+    #topBtn{
+      position:absolute;
+      right:12px;
+      top: calc(12px + env(safe-area-inset-top));
+      z-index:6;
+      pointer-events:auto;
+      border:0; border-radius:16px;
+      padding:10px 12px;
+      font-size:16px; font-weight:900;
+      background: rgba(255,255,255,.14);
+      color:#fff;
+      border: 1px solid rgba(255,255,255,.16);
+      backdrop-filter: blur(10px);
+    }
 
     /* Overlay */
     #overlay{
@@ -39,43 +59,47 @@
       width:min(92vw,520px);
       border-radius:18px;
       padding:16px;
-      background: rgba(0,0,0,.55);
-      border:1px solid rgba(255,255,255,.12);
-      backdrop-filter: blur(10px);
+      background: rgba(0,0,0,.60);
+      border:1px solid rgba(255,255,255,.14);
+      backdrop-filter: blur(12px);
       color:#fff;
       text-align:center;
     }
-    .title{ font-size:28px; font-weight:900; letter-spacing:.6px; margin:0 0 8px; }
-    .sub{ margin:0 0 12px; opacity:.9; font-weight:700; }
+    .title{ font-size:28px; font-weight:1000; letter-spacing:.6px; margin:0 0 8px; }
+    .sub{ margin:0 0 12px; opacity:.92; font-weight:800; }
     .btnRow{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:10px; }
     button{
-      border:0; border-radius:14px; padding:12px 16px;
-      font-size:16px; font-weight:900;
+      border:0; border-radius:16px; padding:12px 16px;
+      font-size:16px; font-weight:1000;
       background:#6aa5ff; color:#071a33; cursor:pointer;
     }
     button.secondary{ background: rgba(255,255,255,.14); color:#fff; }
 
-    #lb{ text-align:left; margin-top:10px; }
-    #lb h4{ margin:10px 0 6px; }
-    #lb ol{ margin:0; padding-left:18px; }
-    #lb li{ padding:3px 0; }
+    #lb, #lb2, #lb3{ text-align:left; margin-top:10px; }
+    #lb h4, #lb2 h4, #lb3 h4{ margin:10px 0 6px; }
+    #lb ol, #lb2 ol, #lb3 ol{ margin:0; padding-left:18px; }
+    #lb li, #lb2 li, #lb3 li{ padding:3px 0; font-weight:850; }
 
     /* Toast */
     #toast{
-      position:absolute; left:12px; right:12px; bottom:12px;
+      position:absolute;
+      left:12px; right:12px;
+      top: calc(68px + env(safe-area-inset-top));
       display:flex; justify-content:center;
       z-index:20; pointer-events:none;
     }
     #toastBox{
-      opacity:0; transform: translateY(8px);
+      opacity:0; transform: translateY(-8px);
       transition:.22s ease;
       max-width:92vw;
       padding:10px 12px;
-      border-radius:14px;
-      background: rgba(0,0,0,.55);
-      border:1px solid rgba(255,255,255,.12);
-      backdrop-filter: blur(10px);
-      color:#fff; font-weight:900;
+      border-radius:16px;
+      background: rgba(0,0,0,.65);
+      border:1px solid rgba(255,255,255,.14);
+      backdrop-filter: blur(12px);
+      color:#fff; font-weight:1000;
+      text-shadow: 0 1px 2px rgba(0,0,0,.6);
+      font-size:16px;
     }
     #toastBox.show{ opacity:1; transform: translateY(0); }
   </style>
@@ -90,6 +114,8 @@
     <div class="chip">🏆 <span class="muted">Рекорд:</span> <span id="best">0</span> м</div>
     <div class="chip">🪙 <span class="muted">Монеты:</span> <span id="coins">0</span></div>
   </div>
+
+  <button id="topBtn">ТОП</button>
 
   <div id="overlay">
     <div class="panel" id="menuPanel">
@@ -110,6 +136,15 @@
         <button class="secondary" id="btnBack">Меню</button>
       </div>
       <div id="lb2"></div>
+    </div>
+
+    <div class="panel" id="topPanel" style="display:none;">
+      <div class="title">ТОП-10</div>
+      <p class="sub">Лучшие забеги по метрам</p>
+      <div id="lb3"></div>
+      <div class="btnRow">
+        <button class="secondary" id="btnCloseTop">Закрыть</button>
+      </div>
     </div>
   </div>
 
@@ -134,11 +169,15 @@ const coinsEl = document.getElementById("coins");
 
 const menuPanel = document.getElementById("menuPanel");
 const overPanel = document.getElementById("overPanel");
+const topPanel  = document.getElementById("topPanel");
 
 const btnStart = document.getElementById("btnStart");
 const btnAgain = document.getElementById("btnAgain");
 const btnBack  = document.getElementById("btnBack");
 const btnClear = document.getElementById("btnClear");
+
+const topBtn = document.getElementById("topBtn");
+const btnCloseTop = document.getElementById("btnCloseTop");
 
 const finalDistEl = document.getElementById("finalDist");
 const finalCoinsEl = document.getElementById("finalCoins");
@@ -172,16 +211,17 @@ function renderLB(targetId){
   const el = document.getElementById(targetId);
   if(!el) return;
   if(lb.length === 0){
-    el.innerHTML = "<h4>Топ-10</h4><div style='opacity:.85;font-weight:700;'>Пока пусто — сыграй первый раз.</div>";
+    el.innerHTML = "<h4>Топ-10</h4><div style='opacity:.9;font-weight:850;'>Пока пусто — сыграй первый раз.</div>";
     return;
   }
   const items = lb.map((x,i)=>`<li><b>#${i+1}</b> — ${x.m} м</li>`).join("");
   el.innerHTML = `<h4>Топ-10</h4><ol>${items}</ol>`;
 }
 renderLB("lb");
+renderLB("lb3");
 
 /* Game state */
-let state = "menu"; // menu | play | over
+let state = "menu"; // menu | play | pause | over
 let distance = 0;
 let earnedThisRun = 0;
 
@@ -190,7 +230,7 @@ const GROUND_H = 120;
 const GRAVITY = 2700;
 const JUMP_V  = 980;
 
-let BASE_SPEED = 520; // стартовая скорость мира
+let BASE_SPEED = 520; // px/s базовая скорость мира
 let speedMul = 1;
 
 /* Player (hitbox) */
@@ -211,16 +251,37 @@ const obstacles = [];
 let nextSpawnX = 0;
 
 function randInt(a,b){ return Math.floor(a + Math.random()*(b-a+1)); }
+function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
 
-function spawnObstacle(){
+/*
+  Новый спавн:
+  - частота по времени (секунды между препятствиями)
+  - в начале 1.6–2.2 сек, дальше 0.8–1.4 сек
+  - безопасный минимум, чтобы не было "невозможно"
+*/
+function computeGapSeconds(){
+  const t = clamp(distance / 3000, 0, 1);     // чем дальше, тем сложнее
+  const minS = 1.6 - 0.7 * t;                // 1.6 -> 0.9
+  const maxS = 2.2 - 0.8 * t;                // 2.2 -> 1.4
+  return minS + Math.random() * (maxS - minS);
+}
+
+function minSafeGapSeconds(){
+  // время полёта вверх-вниз ~ 2*V/G
+  const air = (2 * JUMP_V) / GRAVITY; // ~0.73s
+  // делаем чуть больше, чтобы всегда был шанс
+  return Math.max(0.85, air * 1.05);
+}
+
+function spawnObstacle(worldSpeed){
   const w = 54;
   const h = randInt(70, 135);
   obstacles.push({ x: nextSpawnX, y: groundY() - h, w, h });
 
-  // ГАП: всегда проходимый (нет “стены”)
-  const worldSpeed = BASE_SPEED * speedMul;
-  const minGap = 280 + worldSpeed * 0.35;
-  nextSpawnX += minGap + randInt(0, 160);
+  // gap in px based on seconds
+  const gapS = Math.max(computeGapSeconds(), minSafeGapSeconds());
+  const jitter = randInt(-80, 120);
+  nextSpawnX += Math.max(260, worldSpeed * gapS + jitter);
 }
 
 /* Rewards */
@@ -267,7 +328,7 @@ function resetRun(){
   player.animT = 0;
 
   obstacles.length = 0;
-  nextSpawnX = canvas.width + 260;
+  nextSpawnX = canvas.width + 500;
 
   distEl.textContent = "0";
   coins = Number(localStorage.getItem("wg_coins") || 0);
@@ -281,6 +342,7 @@ function startGame(){
   state = "play";
   menuPanel.style.display = "none";
   overPanel.style.display = "none";
+  topPanel.style.display = "none";
   resetRun();
 }
 
@@ -304,7 +366,9 @@ function endGame(){
 
   overPanel.style.display = "block";
   menuPanel.style.display = "none";
+  topPanel.style.display = "none";
   renderLB("lb2");
+  renderLB("lb3");
 }
 
 /* Jump */
@@ -316,12 +380,12 @@ function jump(){
   }
 }
 
-/* INPUT: ВСЕГДА ловим на окне */
+/* INPUT: always on window */
 function onTap(e){
-  // чтобы iOS не скроллил/не зумил
   try{ e.preventDefault?.(); }catch(_){}
   if(state === "menu") { startGame(); return; }
   if(state === "over") { startGame(); return; }
+  if(state === "pause") return;
   jump();
 }
 window.addEventListener("touchstart", onTap, { passive:false });
@@ -330,7 +394,7 @@ window.addEventListener("pointerdown", onTap, { passive:false });
 /* Buttons */
 btnStart.onclick = () => startGame();
 btnAgain.onclick = () => startGame();
-btnBack.onclick  = () => { state="menu"; overPanel.style.display="none"; menuPanel.style.display="block"; renderLB("lb"); };
+btnBack.onclick  = () => { state="menu"; overPanel.style.display="none"; topPanel.style.display="none"; menuPanel.style.display="block"; renderLB("lb"); };
 btnClear.onclick = () => {
   localStorage.removeItem("wg_best_m");
   localStorage.removeItem("wg_lb10");
@@ -339,7 +403,22 @@ btnClear.onclick = () => {
   bestEl.textContent = "0";
   coinsEl.textContent = "0";
   renderLB("lb");
+  renderLB("lb3");
   toast("Сброс выполнен");
+};
+
+/* Top panel in game */
+topBtn.onclick = () => {
+  if(state === "play") state = "pause";
+  topPanel.style.display = "block";
+  menuPanel.style.display = "none";
+  overPanel.style.display = "none";
+  renderLB("lb3");
+};
+btnCloseTop.onclick = () => {
+  topPanel.style.display = "none";
+  if(state === "pause") state = "play";
+  if(state === "menu") menuPanel.style.display = "block";
 };
 
 /* Rewards check */
@@ -366,23 +445,27 @@ function loop(now){
   // background
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
+  // sky
+  ctx.fillStyle = "rgba(0,0,0,0.10)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
   // ground
   ctx.fillStyle = "rgba(20,45,75,0.95)";
   ctx.fillRect(0, groundY(), canvas.width, GROUND_H);
 
-  if(state === "play"){
-    // speed progression
-    speedMul = 1 + Math.min(0.9, distance / 2600);
-    const worldSpeed = BASE_SPEED * speedMul;
+  // world speed progression
+  speedMul = 1 + Math.min(1.2, distance / 2200); // быстрее набирает скорость
+  const worldSpeed = BASE_SPEED * speedMul;
 
-    // distance
-    distance += (worldSpeed * dt) / 6.8; // метры
+  if(state === "play"){
+    // distance (meters)
+    distance += (worldSpeed * dt) / 6.8;
     distEl.textContent = String(Math.floor(distance));
 
-    // spawn obstacles
-    while(nextSpawnX < canvas.width + 900){
-      spawnObstacle();
-      if(obstacles.length > 7) break;
+    // spawn obstacles: заполняем вперёд без диких дыр
+    while(nextSpawnX < canvas.width + 1200){
+      spawnObstacle(worldSpeed);
+      if(obstacles.length > 14) break; // безопасный лимит, но больше чем раньше
     }
 
     // player physics
@@ -399,16 +482,16 @@ function loop(now){
     // move obstacles
     for(let i = obstacles.length-1; i>=0; i--){
       obstacles[i].x -= worldSpeed * dt;
-      if(obstacles[i].x + obstacles[i].w < -120) obstacles.splice(i,1);
+      if(obstacles[i].x + obstacles[i].w < -200) obstacles.splice(i,1);
     }
 
-    // collisions (немного forgiving)
-    const px1 = player.x + 10, px2 = player.x + player.w - 10;
-    const py1 = player.y + 6,  py2 = player.y + player.h - 2;
+    // collisions (forgiving)
+    const px1 = player.x + 12, px2 = player.x + player.w - 12;
+    const py1 = player.y + 8,  py2 = player.y + player.h - 4;
 
     for(const o of obstacles){
-      const ox1 = o.x + 6, ox2 = o.x + o.w - 6;
-      const oy1 = o.y + 2, oy2 = o.y + o.h;
+      const ox1 = o.x + 8, ox2 = o.x + o.w - 8;
+      const oy1 = o.y + 4, oy2 = o.y + o.h;
 
       const hit = !(px2 < ox1 || px1 > ox2 || py2 < oy1 || py1 > oy2);
       if(hit){ endGame(); break; }
@@ -424,7 +507,7 @@ function loop(now){
   }
 
   // draw player sprite
-  // row: 0 бег (верх), 1 прыжок (середина 1 кадр), 2 смерть (низ 1 кадр)
+  // row: 0 бег (верх), 1 прыжок (середина), 2 смерть (низ)
   let row=0, col=0;
   if(state === "over"){ row=2; col=0; }
   else if(!player.onGround){ row=1; col=0; }
