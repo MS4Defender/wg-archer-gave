@@ -10,7 +10,6 @@
     #root{ position:fixed; inset:0; background: linear-gradient(#0b2548,#071a33); }
     canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
 
-    /* Кнопки — чтобы точно были видны */
     #btnBar{
       position:absolute; left:12px; right:12px;
       bottom: calc(14px + env(safe-area-inset-bottom));
@@ -46,11 +45,15 @@ try{
   Telegram.WebApp.disableVerticalSwipes?.();
 } catch(e){}
 
+/* ✅ Определяем: игра запущена ВНУТРИ Telegram или нет */
+const TG_ID = Telegram?.WebApp?.initDataUnsafe?.user?.id || null;
+const IS_TG = !!TG_ID;
+
 /* Canvas */
 const canvas = document.getElementById("c");
 const ctx = canvas.getContext("2d");
 
-/* ✅ FIX #1: супер-стабильный resize для Telegram/iOS/Android (без DPR, без scale) */
+/* ✅ Стабильный resize (как у тебя работало) */
 function getStableSize(){
   let w = Math.floor(window.innerWidth);
   let h = Math.floor(window.innerHeight);
@@ -70,20 +73,34 @@ function resize(){
   const s = getStableSize();
   canvas.width  = s.w;
   canvas.height = s.h;
-
-  // на всякий — сброс любых трансформаций (чтобы не было “гигантского квадрата”)
   ctx.setTransform(1,0,0,1,0,0);
 }
 window.addEventListener("resize", resize);
 resize();
 
-/* Build marker — чтобы понять, обновился ли код */
-const BUILD = "BUILD 2026-02-21 v4";
+/* Build marker */
+const BUILD = "BUILD 2026-02-21 v5 TG-ONLY";
+
+/* ✅ Ключи хранения ДАННЫХ — ТОЛЬКО по TG_ID
+   - в браузере TG_ID нет → это демо, и монеты не выдаются
+*/
+function key(name){
+  // чтобы не было фарма вне Telegram:
+  // в демо-режиме ключи отдельные и монеты мы всё равно не начисляем
+  const id = IS_TG ? String(TG_ID) : "DEMO";
+  return `wg_${name}_${id}`;
+}
 
 /* Storage */
-let best = Number(localStorage.getItem("wg_best_m") || 0);
-let coins = Number(localStorage.getItem("wg_coins") || 0);
-let lb = JSON.parse(localStorage.getItem("wg_lb10") || "[]"); // [{m,ts}]
+let best = Number(localStorage.getItem(key("best_m")) || 0);
+let coins = Number(localStorage.getItem(key("coins")) || 0);
+let lb = JSON.parse(localStorage.getItem(key("lb10")) || "[]"); // [{m,ts}]
+
+/* ✅ Список наград, которые игрок УЖЕ получил (навсегда) */
+let claimedRewards = new Set(JSON.parse(localStorage.getItem(key("claimed_rewards")) || "[]"));
+function saveClaimed(){
+  localStorage.setItem(key("claimed_rewards"), JSON.stringify([...claimedRewards]));
+}
 
 /* UI buttons */
 const btnStart = document.getElementById("btnStart");
@@ -133,7 +150,7 @@ function drawSprite(row, col, x, y, w, h){
   ctx.drawImage(sprite, sx, sy, frameW, frameH, x, y, w, h);
 }
 
-/* Obstacles — СПАВН ПО ТАЙМЕРУ */
+/* Obstacles */
 const obstacles = [];
 let spawnTimer = 0;
 
@@ -142,8 +159,8 @@ function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
 
 function gapSeconds(){
   const t = clamp(distance / 3500, 0, 1);
-  const minS = 1.1 - 0.45*t;   // 1.1 -> 0.65
-  const maxS = 1.8 - 0.55*t;   // 1.8 -> 1.25
+  const minS = 1.1 - 0.45*t;
+  const maxS = 1.8 - 0.55*t;
   return minS + Math.random() * (maxS - minS);
 }
 
@@ -157,31 +174,45 @@ function spawnObstacle(){
   });
 }
 
-/* Rewards */
+/* Rewards (номиналы потом подправим) */
 const rewards = [
   { m: 200,  coins: 50  },
   { m: 500,  coins: 120 },
   { m: 1000, coins: 300 },
   { m: 2000, coins: 700 }
 ];
-let rewardGiven = new Set();
 
+/* HUD flash */
+let flashText = "";
+let flashT = 0;
+
+/* ✅ Выдача наград:
+   - только в Telegram
+   - только 1 раз за весь ивент на TG_ID
+*/
 function checkRewards(){
+  if(!IS_TG){
+    // вне Telegram ничего не выдаём
+    return;
+  }
+
   for(const r of rewards){
-    if(distance >= r.m && !rewardGiven.has(r.m)){
-      rewardGiven.add(r.m);
+    // ключ награды — по метражу (r.m)
+    const rewardKey = String(r.m);
+    if(distance >= r.m && !claimedRewards.has(rewardKey)){
+      claimedRewards.add(rewardKey);
+      saveClaimed();
+
       coins += r.coins;
       earnedThisRun += r.coins;
-      localStorage.setItem("wg_coins", String(coins));
-      flashText = `+${r.coins} монет за ${r.m}м`;
+
+      localStorage.setItem(key("coins"), String(coins));
+
+      flashText = `+${r.coins} монет за ${r.m}м (1 раз)`;
       flashT = 1.2;
     }
   }
 }
-
-/* HUD text flash */
-let flashText = "";
-let flashT = 0;
 
 /* Speed */
 let BASE_SPEED = 520;
@@ -189,7 +220,6 @@ let BASE_SPEED = 520;
 function resetRun(){
   distance = 0;
   earnedThisRun = 0;
-  rewardGiven = new Set();
 
   player.y = groundY() - player.h;
   player.vy = 0;
@@ -197,7 +227,6 @@ function resetRun(){
   player.animT = 0;
 
   obstacles.length = 0;
-
   spawnTimer = 0.8;
   BASE_SPEED = 520;
 }
@@ -213,13 +242,13 @@ function endGame(){
 
   if(m > best){
     best = m;
-    localStorage.setItem("wg_best_m", String(best));
+    localStorage.setItem(key("best_m"), String(best));
   }
 
   lb.push({ m, ts: Date.now() });
   lb.sort((a,b)=>b.m-a.m);
   lb = lb.slice(0,10);
-  localStorage.setItem("wg_lb10", JSON.stringify(lb));
+  localStorage.setItem(key("lb10"), JSON.stringify(lb));
 }
 
 /* Input: TAP only */
@@ -243,10 +272,15 @@ btnTop.onclick = () => {
 };
 
 btnReset.onclick = () => {
-  localStorage.removeItem("wg_best_m");
-  localStorage.removeItem("wg_lb10");
-  localStorage.removeItem("wg_coins");
+  // Сброс ТОЛЬКО для текущего TG_ID (или DEMO)
+  localStorage.removeItem(key("best_m"));
+  localStorage.removeItem(key("lb10"));
+  localStorage.removeItem(key("coins"));
+  localStorage.removeItem(key("claimed_rewards"));
+
   best = 0; coins = 0; lb = [];
+  claimedRewards = new Set();
+
   state = "menu";
 };
 
@@ -273,7 +307,7 @@ function loop(now){
   ctx.fillStyle = "rgba(20,45,75,0.95)";
   ctx.fillRect(0, groundY(), canvas.width, GROUND_H);
 
-  // ✅ FIX #2: универсальные шрифты (не будут гигантскими на iPhone)
+  // HUD fonts (как в твоём рабочем варианте)
   const safeTop = 12;
   const hud  = Math.max(12, Math.min(18, Math.floor(canvas.width * 0.045))); // 12..18
   const hud2 = Math.max(16, Math.min(22, Math.floor(canvas.width * 0.055))); // 16..22
@@ -282,32 +316,38 @@ function loop(now){
   ctx.fillStyle = "rgba(255,255,255,.95)";
   ctx.fillText(BUILD, 12, safeTop + hud);
 
+  // ✅ Показываем режим: TG / DEMO (чтобы ты видел, почему монеты не идут)
+  ctx.font = `800 ${hud}px system-ui, -apple-system, Arial`;
+  ctx.fillStyle = IS_TG ? "rgba(120,255,170,.95)" : "rgba(255,200,120,.95)";
+  ctx.fillText(IS_TG ? "TG: OK" : "DEMO: монеты не выдаются", 12, safeTop + hud + 22);
+
   if(state === "play" || state === "over"){
     ctx.font = `1000 ${hud2}px system-ui, -apple-system, Arial`;
-    ctx.fillText(`Дистанция: ${Math.floor(distance)} м`, 12, safeTop + hud2 + 22);
-    ctx.fillText(`Рекорд: ${best} м`, 12, safeTop + hud2 + 52);
-    ctx.fillText(`Монеты: ${coins}`, 12, safeTop + hud2 + 82);
+    ctx.fillStyle = "rgba(255,255,255,.95)";
+    ctx.fillText(`Дистанция: ${Math.floor(distance)} м`, 12, safeTop + hud2 + 44);
+    ctx.fillText(`Рекорд: ${best} м`, 12, safeTop + hud2 + 74);
+    ctx.fillText(`Монеты: ${coins}`, 12, safeTop + hud2 + 104);
   }
 
   if(flashT > 0){
     flashT -= dt;
     ctx.font = `1000 ${hud2}px system-ui, -apple-system, Arial`;
     ctx.fillStyle = "rgba(255,255,255,.98)";
-    ctx.fillText(flashText, 12, safeTop + hud2 + 112);
+    ctx.fillText(flashText, 12, safeTop + hud2 + 134);
   }
 
   if(state === "top"){
-    drawTextBox(12, safeTop + 50, Math.min(520, canvas.width-24), 320);
+    drawTextBox(12, safeTop + 80, Math.min(520, canvas.width-24), 320);
     ctx.fillStyle = "#fff";
     ctx.font = `1000 ${Math.max(18, hud2)}px system-ui, -apple-system, Arial`;
-    ctx.fillText("ТОП-10", 24, safeTop + 82);
+    ctx.fillText("ТОП-10", 24, safeTop + 112);
 
     ctx.font = `900 ${Math.max(14, hud)}px system-ui, -apple-system, Arial`;
     if(lb.length === 0){
-      ctx.fillText("Пока пусто — сыграй первый раз.", 24, safeTop + 120);
+      ctx.fillText("Пока пусто — сыграй первый раз.", 24, safeTop + 150);
     } else {
       for(let i=0;i<lb.length;i++){
-        ctx.fillText(`#${i+1} — ${lb[i].m} м`, 24, safeTop + 120 + i*24);
+        ctx.fillText(`#${i+1} — ${lb[i].m} м`, 24, safeTop + 150 + i*24);
       }
     }
     requestAnimationFrame(loop);
@@ -365,7 +405,7 @@ function loop(now){
     ctx.fillRect(o.x, o.y, o.w, o.h);
   }
 
-  // draw player animation: 0 row run, 1 jump, 2 death
+  // draw player animation
   let row=0, col=0;
   if(state === "over"){ row=2; col=0; }
   else if(!player.onGround){ row=1; col=0; }
@@ -378,13 +418,13 @@ function loop(now){
 
   // game over text on canvas
   if(state === "over"){
-    drawTextBox(12, safeTop + 170, Math.min(520, canvas.width-24), 120);
+    drawTextBox(12, safeTop + 190, Math.min(520, canvas.width-24), 120);
     ctx.fillStyle = "#fff";
     ctx.font = `1000 ${Math.max(22, hud2)}px system-ui, -apple-system, Arial`;
-    ctx.fillText("GAME OVER", 24, safeTop + 205);
+    ctx.fillText("GAME OVER", 24, safeTop + 225);
     ctx.font = `900 ${Math.max(14, hud)}px system-ui, -apple-system, Arial`;
-    ctx.fillText(`Забег: ${Math.floor(distance)} м  |  +${earnedThisRun} монет`, 24, safeTop + 235);
-    ctx.fillText("Тап — начать заново", 24, safeTop + 260);
+    ctx.fillText(`Забег: ${Math.floor(distance)} м  |  +${earnedThisRun} монет`, 24, safeTop + 255);
+    ctx.fillText("Тап — начать заново", 24, safeTop + 280);
   }
 
   requestAnimationFrame(loop);
