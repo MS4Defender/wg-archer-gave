@@ -6,102 +6,23 @@
   <title>WG Archer Run</title>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <style>
-    html, body { margin:0; padding:0; height:100%; background:#071a33; overflow:hidden; font-family: system-ui, -apple-system, Arial; }
+    html, body { margin:0; height:100%; background:#071a33; overflow:hidden; font-family: system-ui, -apple-system, Arial; }
     #root{ position:fixed; inset:0; background: linear-gradient(#0b2548,#071a33); }
     canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
-
-    /* HUD */
-    #hud{
-      position:absolute;
-      left:12px; right:12px;
-      top: calc(12px + env(safe-area-inset-top));
-      display:flex; gap:10px; flex-wrap:wrap;
-      z-index:5;
-      pointer-events:none;
-    }
-    .chip{
-      display:inline-flex; gap:8px; align-items:center;
-      padding:10px 12px; border-radius:16px;
-      background: rgba(0,0,0,.55);
-      color:#fff; font-weight:900;
-      border: 1px solid rgba(255,255,255,.16);
-      backdrop-filter: blur(10px);
-      font-size:18px;
-      text-shadow: 0 1px 2px rgba(0,0,0,.6);
-    }
-    .muted{ opacity:.9; font-weight:800; }
-
-    /* Top button */
-    #topBtn{
-      position:absolute;
-      right:12px;
-      top: calc(12px + env(safe-area-inset-top));
-      z-index:6;
+    /* Кнопки — чтобы точно были видны */
+    #btnBar{
+      position:absolute; left:12px; right:12px;
+      bottom: calc(14px + env(safe-area-inset-bottom));
+      display:flex; gap:10px; justify-content:center;
+      z-index:50;
       pointer-events:auto;
-      border:0; border-radius:16px;
-      padding:10px 12px;
-      font-size:16px; font-weight:900;
-      background: rgba(255,255,255,.14);
-      color:#fff;
-      border: 1px solid rgba(255,255,255,.16);
-      backdrop-filter: blur(10px);
     }
-
-    /* Overlay */
-    #overlay{
-      position:absolute; inset:0;
-      display:flex; align-items:center; justify-content:center;
-      z-index:10;
-      pointer-events:none;
-    }
-    .panel{
-      pointer-events:auto;
-      width:min(92vw,520px);
-      border-radius:18px;
-      padding:16px;
-      background: rgba(0,0,0,.60);
-      border:1px solid rgba(255,255,255,.14);
-      backdrop-filter: blur(12px);
-      color:#fff;
-      text-align:center;
-    }
-    .title{ font-size:28px; font-weight:1000; letter-spacing:.6px; margin:0 0 8px; }
-    .sub{ margin:0 0 12px; opacity:.92; font-weight:800; }
-    .btnRow{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:10px; }
     button{
       border:0; border-radius:16px; padding:12px 16px;
       font-size:16px; font-weight:1000;
-      background:#6aa5ff; color:#071a33; cursor:pointer;
+      background:#6aa5ff; color:#071a33;
     }
-    button.secondary{ background: rgba(255,255,255,.14); color:#fff; }
-
-    #lb, #lb2, #lb3{ text-align:left; margin-top:10px; }
-    #lb h4, #lb2 h4, #lb3 h4{ margin:10px 0 6px; }
-    #lb ol, #lb2 ol, #lb3 ol{ margin:0; padding-left:18px; }
-    #lb li, #lb2 li, #lb3 li{ padding:3px 0; font-weight:850; }
-
-    /* Toast */
-    #toast{
-      position:absolute;
-      left:12px; right:12px;
-      top: calc(68px + env(safe-area-inset-top));
-      display:flex; justify-content:center;
-      z-index:20; pointer-events:none;
-    }
-    #toastBox{
-      opacity:0; transform: translateY(-8px);
-      transition:.22s ease;
-      max-width:92vw;
-      padding:10px 12px;
-      border-radius:16px;
-      background: rgba(0,0,0,.65);
-      border:1px solid rgba(255,255,255,.14);
-      backdrop-filter: blur(12px);
-      color:#fff; font-weight:1000;
-      text-shadow: 0 1px 2px rgba(0,0,0,.6);
-      font-size:16px;
-    }
-    #toastBox.show{ opacity:1; transform: translateY(0); }
+    button.secondary{ background: rgba(255,255,255,.14); color:#fff; border:1px solid rgba(255,255,255,.18); }
   </style>
 </head>
 
@@ -109,46 +30,11 @@
 <div id="root">
   <canvas id="c"></canvas>
 
-  <div id="hud">
-    <div class="chip">🏁 <span class="muted">Дистанция:</span> <span id="dist">0</span> м</div>
-    <div class="chip">🏆 <span class="muted">Рекорд:</span> <span id="best">0</span> м</div>
-    <div class="chip">🪙 <span class="muted">Монеты:</span> <span id="coins">0</span></div>
+  <div id="btnBar">
+    <button id="btnStart">Играть</button>
+    <button id="btnTop" class="secondary">ТОП</button>
+    <button id="btnReset" class="secondary">Сброс</button>
   </div>
-
-  <button id="topBtn">ТОП</button>
-
-  <div id="overlay">
-    <div class="panel" id="menuPanel">
-      <div class="title">WG Archer Run</div>
-      <p class="sub">Тап по экрану — прыжок. Первый тап — старт.</p>
-      <div class="btnRow">
-        <button id="btnStart">Играть</button>
-        <button class="secondary" id="btnClear">Сброс</button>
-      </div>
-      <div id="lb"></div>
-    </div>
-
-    <div class="panel" id="overPanel" style="display:none;">
-      <div class="title">GAME OVER</div>
-      <p class="sub">Забег: <b><span id="finalDist">0</span> м</b> · Монеты: <b>+<span id="finalCoins">0</span></b></p>
-      <div class="btnRow">
-        <button id="btnAgain">Ещё раз</button>
-        <button class="secondary" id="btnBack">Меню</button>
-      </div>
-      <div id="lb2"></div>
-    </div>
-
-    <div class="panel" id="topPanel" style="display:none;">
-      <div class="title">ТОП-10</div>
-      <p class="sub">Лучшие забеги по метрам</p>
-      <div id="lb3"></div>
-      <div class="btnRow">
-        <button class="secondary" id="btnCloseTop">Закрыть</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="toast"><div id="toastBox"></div></div>
 </div>
 
 <script>
@@ -159,39 +45,10 @@ try{
   Telegram.WebApp.disableVerticalSwipes?.();
 } catch(e){}
 
-/* UI refs */
+/* Canvas */
 const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d", { alpha: true });
+const ctx = canvas.getContext("2d");
 
-const distEl = document.getElementById("dist");
-const bestEl = document.getElementById("best");
-const coinsEl = document.getElementById("coins");
-
-const menuPanel = document.getElementById("menuPanel");
-const overPanel = document.getElementById("overPanel");
-const topPanel  = document.getElementById("topPanel");
-
-const btnStart = document.getElementById("btnStart");
-const btnAgain = document.getElementById("btnAgain");
-const btnBack  = document.getElementById("btnBack");
-const btnClear = document.getElementById("btnClear");
-
-const topBtn = document.getElementById("topBtn");
-const btnCloseTop = document.getElementById("btnCloseTop");
-
-const finalDistEl = document.getElementById("finalDist");
-const finalCoinsEl = document.getElementById("finalCoins");
-
-const toastBox = document.getElementById("toastBox");
-
-function toast(t){
-  toastBox.textContent = t;
-  toastBox.classList.add("show");
-  clearTimeout(toast._t);
-  toast._t = setTimeout(()=>toastBox.classList.remove("show"), 1400);
-}
-
-/* Resize */
 function resize(){
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -199,101 +56,40 @@ function resize(){
 window.addEventListener("resize", resize);
 resize();
 
+/* Build marker — чтобы понять, обновился ли код */
+const BUILD = "BUILD 2026-02-21 v1";
+
 /* Storage */
 let best = Number(localStorage.getItem("wg_best_m") || 0);
 let coins = Number(localStorage.getItem("wg_coins") || 0);
-let lb = JSON.parse(localStorage.getItem("wg_lb10") || "[]"); // top10
-bestEl.textContent = best;
-coinsEl.textContent = coins;
+let lb = JSON.parse(localStorage.getItem("wg_lb10") || "[]"); // [{m,ts}]
 
-/* Leaderboard render */
-function renderLB(targetId){
-  const el = document.getElementById(targetId);
-  if(!el) return;
-  if(lb.length === 0){
-    el.innerHTML = "<h4>Топ-10</h4><div style='opacity:.9;font-weight:850;'>Пока пусто — сыграй первый раз.</div>";
-    return;
-  }
-  const items = lb.map((x,i)=>`<li><b>#${i+1}</b> — ${x.m} м</li>`).join("");
-  el.innerHTML = `<h4>Топ-10</h4><ol>${items}</ol>`;
-}
-renderLB("lb");
-renderLB("lb3");
+/* UI buttons */
+const btnStart = document.getElementById("btnStart");
+const btnTop   = document.getElementById("btnTop");
+const btnReset = document.getElementById("btnReset");
 
 /* Game state */
-let state = "menu"; // menu | play | pause | over
+let state = "menu"; // menu | play | top | over
 let distance = 0;
 let earnedThisRun = 0;
 
-/* World constants */
+/* Physics */
 const GROUND_H = 120;
 const GRAVITY = 2700;
 const JUMP_V  = 980;
 
-let BASE_SPEED = 520; // px/s базовая скорость мира
-let speedMul = 1;
+function groundY(){ return canvas.height - GROUND_H; }
 
-/* Player (hitbox) */
 const player = {
-  x: 90,
-  y: 0,
-  w: 84,
-  h: 84,
+  x: 90, y: 0,
+  w: 84, h: 84,
   vy: 0,
   onGround: true,
   animT: 0
 };
 
-function groundY(){ return canvas.height - GROUND_H; }
-
-/* Obstacles */
-const obstacles = [];
-let nextSpawnX = 0;
-
-function randInt(a,b){ return Math.floor(a + Math.random()*(b-a+1)); }
-function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
-
-/*
-  Новый спавн:
-  - частота по времени (секунды между препятствиями)
-  - в начале 1.6–2.2 сек, дальше 0.8–1.4 сек
-  - безопасный минимум, чтобы не было "невозможно"
-*/
-function computeGapSeconds(){
-  const t = clamp(distance / 3000, 0, 1);     // чем дальше, тем сложнее
-  const minS = 1.6 - 0.7 * t;                // 1.6 -> 0.9
-  const maxS = 2.2 - 0.8 * t;                // 2.2 -> 1.4
-  return minS + Math.random() * (maxS - minS);
-}
-
-function minSafeGapSeconds(){
-  // время полёта вверх-вниз ~ 2*V/G
-  const air = (2 * JUMP_V) / GRAVITY; // ~0.73s
-  // делаем чуть больше, чтобы всегда был шанс
-  return Math.max(0.85, air * 1.05);
-}
-
-function spawnObstacle(worldSpeed){
-  const w = 54;
-  const h = randInt(70, 135);
-  obstacles.push({ x: nextSpawnX, y: groundY() - h, w, h });
-
-  // gap in px based on seconds
-  const gapS = Math.max(computeGapSeconds(), minSafeGapSeconds());
-  const jitter = randInt(-80, 120);
-  nextSpawnX += Math.max(260, worldSpeed * gapS + jitter);
-}
-
-/* Rewards */
-const rewards = [
-  { m: 200, coins: 50 },
-  { m: 500, coins: 120 },
-  { m: 1000, coins: 300 },
-  { m: 2000, coins: 700 }
-];
-let rewardGiven = new Set();
-
-/* Sprite */
+/* Sprite sheet 3x3 */
 const sprite = new Image();
 sprite.src = "archer.png";
 let spriteReady = false;
@@ -308,7 +104,7 @@ sprite.onload = () => {
 function drawSprite(row, col, x, y, w, h){
   if(!spriteReady){
     ctx.fillStyle = "#fff";
-    ctx.fillRect(x, y, w, h);
+    ctx.fillRect(x,y,w,h);
     return;
   }
   const sx = col * frameW;
@@ -316,7 +112,61 @@ function drawSprite(row, col, x, y, w, h){
   ctx.drawImage(sprite, sx, sy, frameW, frameH, x, y, w, h);
 }
 
-/* Core */
+/* Obstacles — СПАВН ПО ТАЙМЕРУ (никаких “минут пустоты”) */
+const obstacles = [];
+let spawnTimer = 0;
+
+function randInt(a,b){ return Math.floor(a + Math.random()*(b-a+1)); }
+function clamp(x,a,b){ return Math.max(a, Math.min(b, x)); }
+
+function gapSeconds(){
+  // хочешь: каждые 1–2 секунды в начале, и чаще с дистанцией
+  const t = clamp(distance / 3500, 0, 1);
+  const minS = 1.1 - 0.45*t;   // 1.1 -> 0.65
+  const maxS = 1.8 - 0.55*t;   // 1.8 -> 1.25
+  return minS + Math.random() * (maxS - minS);
+}
+
+function spawnObstacle(){
+  const w = 54;
+  const h = randInt(75, 140);
+  obstacles.push({
+    x: canvas.width + 80,
+    y: groundY() - h,
+    w, h
+  });
+}
+
+/* Rewards */
+const rewards = [
+  { m: 200,  coins: 50  },
+  { m: 500,  coins: 120 },
+  { m: 1000, coins: 300 },
+  { m: 2000, coins: 700 }
+];
+let rewardGiven = new Set();
+
+function checkRewards(){
+  for(const r of rewards){
+    if(distance >= r.m && !rewardGiven.has(r.m)){
+      rewardGiven.add(r.m);
+      coins += r.coins;
+      earnedThisRun += r.coins;
+      localStorage.setItem("wg_coins", String(coins));
+      // простое уведомление в игре (текст на канвасе)
+      flashText = `+${r.coins} монет за ${r.m}м`;
+      flashT = 1.2;
+    }
+  }
+}
+
+/* HUD text flash */
+let flashText = "";
+let flashT = 0;
+
+/* Speed */
+let BASE_SPEED = 520;
+
 function resetRun(){
   distance = 0;
   earnedThisRun = 0;
@@ -328,124 +178,76 @@ function resetRun(){
   player.animT = 0;
 
   obstacles.length = 0;
-  nextSpawnX = canvas.width + 500;
 
-  distEl.textContent = "0";
-  coins = Number(localStorage.getItem("wg_coins") || 0);
-  coinsEl.textContent = coins;
-
+  spawnTimer = 0.8; // быстрое первое препятствие
   BASE_SPEED = 520;
-  speedMul = 1;
 }
 
 function startGame(){
   state = "play";
-  menuPanel.style.display = "none";
-  overPanel.style.display = "none";
-  topPanel.style.display = "none";
   resetRun();
 }
 
 function endGame(){
   state = "over";
-
   const m = Math.floor(distance);
+
   if(m > best){
     best = m;
     localStorage.setItem("wg_best_m", String(best));
   }
-  bestEl.textContent = best;
 
   lb.push({ m, ts: Date.now() });
   lb.sort((a,b)=>b.m-a.m);
   lb = lb.slice(0,10);
   localStorage.setItem("wg_lb10", JSON.stringify(lb));
-
-  finalDistEl.textContent = m;
-  finalCoinsEl.textContent = earnedThisRun;
-
-  overPanel.style.display = "block";
-  menuPanel.style.display = "none";
-  topPanel.style.display = "none";
-  renderLB("lb2");
-  renderLB("lb3");
 }
 
-/* Jump */
-function jump(){
+/* Input: TAP only (и на телефоне, и на ПК) */
+function tap(e){
+  try{ e.preventDefault?.(); }catch(_){}
+  if(state === "menu" || state === "over"){ startGame(); return; }
   if(state !== "play") return;
   if(player.onGround){
     player.vy = -JUMP_V;
     player.onGround = false;
   }
 }
-
-/* INPUT: always on window */
-function onTap(e){
-  try{ e.preventDefault?.(); }catch(_){}
-  if(state === "menu") { startGame(); return; }
-  if(state === "over") { startGame(); return; }
-  if(state === "pause") return;
-  jump();
-}
-window.addEventListener("touchstart", onTap, { passive:false });
-window.addEventListener("pointerdown", onTap, { passive:false });
+window.addEventListener("touchstart", tap, { passive:false });
+window.addEventListener("pointerdown", tap, { passive:false });
 
 /* Buttons */
 btnStart.onclick = () => startGame();
-btnAgain.onclick = () => startGame();
-btnBack.onclick  = () => { state="menu"; overPanel.style.display="none"; topPanel.style.display="none"; menuPanel.style.display="block"; renderLB("lb"); };
-btnClear.onclick = () => {
+
+btnTop.onclick = () => {
+  // простое окно топа прямо на canvas — переключатель
+  state = (state === "top") ? "menu" : "top";
+};
+
+btnReset.onclick = () => {
   localStorage.removeItem("wg_best_m");
   localStorage.removeItem("wg_lb10");
   localStorage.removeItem("wg_coins");
   best = 0; coins = 0; lb = [];
-  bestEl.textContent = "0";
-  coinsEl.textContent = "0";
-  renderLB("lb");
-  renderLB("lb3");
-  toast("Сброс выполнен");
+  state = "menu";
 };
 
-/* Top panel in game */
-topBtn.onclick = () => {
-  if(state === "play") state = "pause";
-  topPanel.style.display = "block";
-  menuPanel.style.display = "none";
-  overPanel.style.display = "none";
-  renderLB("lb3");
-};
-btnCloseTop.onclick = () => {
-  topPanel.style.display = "none";
-  if(state === "pause") state = "play";
-  if(state === "menu") menuPanel.style.display = "block";
-};
-
-/* Rewards check */
-function checkRewards(){
-  for(const r of rewards){
-    if(distance >= r.m && !rewardGiven.has(r.m)){
-      rewardGiven.add(r.m);
-      coins += r.coins;
-      earnedThisRun += r.coins;
-      localStorage.setItem("wg_coins", String(coins));
-      coinsEl.textContent = coins;
-      toast(`✅ +${r.coins} монет за ${r.m} м`);
-    }
-  }
+/* Draw helpers */
+function drawTextBox(x,y,w,h){
+  ctx.fillStyle = "rgba(0,0,0,.55)";
+  ctx.fillRect(x,y,w,h);
+  ctx.strokeStyle = "rgba(255,255,255,.18)";
+  ctx.strokeRect(x+0.5,y+0.5,w-1,h-1);
 }
 
-/* Loop */
 let last = performance.now();
 
 function loop(now){
-  const dt = Math.min(0.033, (now - last)/1000);
+  const dt = Math.min(0.033, (now-last)/1000);
   last = now;
 
   // background
   ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  // sky
   ctx.fillStyle = "rgba(0,0,0,0.10)";
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
@@ -453,22 +255,59 @@ function loop(now){
   ctx.fillStyle = "rgba(20,45,75,0.95)";
   ctx.fillRect(0, groundY(), canvas.width, GROUND_H);
 
-  // world speed progression
-  speedMul = 1 + Math.min(1.2, distance / 2200); // быстрее набирает скорость
+  // HUD (РИСУЕМ НА CANVAS — ты ТОЧНО это увидишь)
+  const safeTop = 12 + (window.visualViewport?.offsetTop || 0);
+  ctx.font = "700 18px system-ui, -apple-system, Arial";
+  ctx.fillStyle = "rgba(255,255,255,.95)";
+  ctx.fillText(BUILD, 12, safeTop + 18);
+
+  if(state === "play" || state === "over"){
+    ctx.font = "900 22px system-ui, -apple-system, Arial";
+    ctx.fillText(`Дистанция: ${Math.floor(distance)} м`, 12, safeTop + 50);
+    ctx.fillText(`Рекорд: ${best} м`, 12, safeTop + 80);
+    ctx.fillText(`Монеты: ${coins}`, 12, safeTop + 110);
+  }
+
+  if(flashT > 0){
+    flashT -= dt;
+    ctx.font = "1000 20px system-ui, -apple-system, Arial";
+    ctx.fillStyle = "rgba(255,255,255,.98)";
+    ctx.fillText(flashText, 12, safeTop + 140);
+  }
+
+  if(state === "top"){
+    drawTextBox(12, safeTop + 50, Math.min(520, canvas.width-24), 320);
+    ctx.fillStyle = "#fff";
+    ctx.font = "1000 22px system-ui, -apple-system, Arial";
+    ctx.fillText("ТОП-10", 24, safeTop + 82);
+
+    ctx.font = "900 18px system-ui, -apple-system, Arial";
+    if(lb.length === 0){
+      ctx.fillText("Пока пусто — сыграй первый раз.", 24, safeTop + 120);
+    } else {
+      for(let i=0;i<lb.length;i++){
+        ctx.fillText(`#${i+1} — ${lb[i].m} м`, 24, safeTop + 120 + i*24);
+      }
+    }
+    requestAnimationFrame(loop);
+    return;
+  }
+
+  // speed growth
+  const speedMul = 1 + Math.min(1.2, distance / 2200);
   const worldSpeed = BASE_SPEED * speedMul;
 
   if(state === "play"){
-    // distance (meters)
     distance += (worldSpeed * dt) / 6.8;
-    distEl.textContent = String(Math.floor(distance));
 
-    // spawn obstacles: заполняем вперёд без диких дыр
-    while(nextSpawnX < canvas.width + 1200){
-      spawnObstacle(worldSpeed);
-      if(obstacles.length > 14) break; // безопасный лимит, но больше чем раньше
+    // spawn by timer
+    spawnTimer -= dt;
+    if(spawnTimer <= 0){
+      spawnObstacle();
+      spawnTimer = Math.max(0.65, gapSeconds()); // никогда не будет “минутами пусто”
     }
 
-    // player physics
+    // physics
     player.vy += GRAVITY * dt;
     player.y += player.vy * dt;
 
@@ -485,14 +324,13 @@ function loop(now){
       if(obstacles[i].x + obstacles[i].w < -200) obstacles.splice(i,1);
     }
 
-    // collisions (forgiving)
+    // collisions
     const px1 = player.x + 12, px2 = player.x + player.w - 12;
     const py1 = player.y + 8,  py2 = player.y + player.h - 4;
 
     for(const o of obstacles){
       const ox1 = o.x + 8, ox2 = o.x + o.w - 8;
       const oy1 = o.y + 4, oy2 = o.y + o.h;
-
       const hit = !(px2 < ox1 || px1 > ox2 || py2 < oy1 || py1 > oy2);
       if(hit){ endGame(); break; }
     }
@@ -506,23 +344,31 @@ function loop(now){
     ctx.fillRect(o.x, o.y, o.w, o.h);
   }
 
-  // draw player sprite
-  // row: 0 бег (верх), 1 прыжок (середина), 2 смерть (низ)
+  // draw player animation: 0 row run, 1 jump, 2 death
   let row=0, col=0;
   if(state === "over"){ row=2; col=0; }
   else if(!player.onGround){ row=1; col=0; }
   else {
     player.animT += dt;
-    col = Math.floor((player.animT * 10) % 3); // 3 кадра бега
+    col = Math.floor((player.animT * 10) % 3);
     row = 0;
   }
   drawSprite(row, col, player.x, player.y, player.w, player.h);
 
+  // game over text on canvas
+  if(state === "over"){
+    drawTextBox(12, safeTop + 170, Math.min(520, canvas.width-24), 120);
+    ctx.fillStyle = "#fff";
+    ctx.font = "1000 26px system-ui, -apple-system, Arial";
+    ctx.fillText("GAME OVER", 24, safeTop + 205);
+    ctx.font = "900 18px system-ui, -apple-system, Arial";
+    ctx.fillText(`Забег: ${Math.floor(distance)} м  |  +${earnedThisRun} монет`, 24, safeTop + 235);
+    ctx.fillText("Тап — начать заново", 24, safeTop + 260);
+  }
+
   requestAnimationFrame(loop);
 }
 
-/* init */
-resetRun();
 requestAnimationFrame(loop);
 </script>
 </body>
