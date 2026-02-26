@@ -11,14 +11,14 @@
       background:#071a33;
       overflow:hidden;
       font-family: system-ui, -apple-system, Arial;
-      -webkit-text-size-adjust: 100%; /* ВАЖНО: убирает iOS “автозум текста” */
+      -webkit-text-size-adjust: 100%;
     }
     #root{ position:fixed; inset:0; background: linear-gradient(#0b2548,#071a33); }
     canvas{
       position:absolute; inset:0;
       width:100%; height:100%;
       display:block;
-      touch-action:none; /* чтобы iOS не пытался скроллить/зумить */
+      touch-action:none;
     }
     #btnBar{
       position:absolute; left:12px; right:12px;
@@ -57,28 +57,42 @@ try{
 
 /* Canvas */
 const canvas = document.getElementById("c");
-const ctx = canvas.getContext("2d");
+const ctx = canvas.getContext("2d", { alpha: true });
 
-/* ✅ КЛЮЧЕВОЕ: правильный размер на iOS Telegram */
-function getVV(){
-  const vv = window.visualViewport;
-  if(vv && vv.width && vv.height) return vv;
-  return null;
-}
+let VW = 0, VH = 0, DPR = 1;
 
 function resize(){
-  const vv = getVV();
-  const w = vv ? vv.width : window.innerWidth;
-  const h = vv ? vv.height : window.innerHeight;
+  // 1) Берём размеры из Telegram (самое стабильное внутри мини-аппа)
+  let w = window.innerWidth;
+  let h = window.innerHeight;
 
-  // DPR ограничим (чтобы не тормозило)
-  const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  try{
+    if (window.Telegram?.WebApp){
+      // stableHeight — ключ к iOS, где innerHeight часто врёт
+      if (Telegram.WebApp.viewportStableHeight) h = Telegram.WebApp.viewportStableHeight;
+      if (Telegram.WebApp.viewportHeight) h = Math.min(h, Telegram.WebApp.viewportHeight);
+    }
+  } catch(e){}
 
-  canvas.width  = Math.floor(w * dpr);
-  canvas.height = Math.floor(h * dpr);
+  // 2) visualViewport — подстраховка, + вытаскиваем scale (iOS zoom)
+  const vv = window.visualViewport;
+  const scale = vv?.scale || 1;
+  if (vv?.width && vv?.height){
+    w = vv.width;
+    h = vv.height;
+  }
 
-  // Рисуем в CSS-пикселях (нормально для всех)
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // 3) DPR учитывает zoom-scale (это фиксит гигантские шрифты на iPhone)
+  DPR = Math.max(1, Math.min(3, (window.devicePixelRatio || 1) * scale));
+
+  VW = Math.floor(w);
+  VH = Math.floor(h);
+
+  canvas.width  = Math.floor(VW * DPR);
+  canvas.height = Math.floor(VH * DPR);
+
+  // Рисуем в CSS-пикселях
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 window.addEventListener("resize", resize);
 window.visualViewport?.addEventListener("resize", resize);
@@ -86,7 +100,7 @@ window.visualViewport?.addEventListener("scroll", resize);
 resize();
 
 /* Build marker */
-const BUILD = "BUILD 2026-02-21 v3 iOS-FIX";
+const BUILD = "BUILD 2026-02-21 v4 TELEGRAM-SAFE";
 
 /* Storage */
 let best = Number(localStorage.getItem("wg_best_m") || 0);
@@ -108,9 +122,8 @@ const GROUND_H = 120;
 const GRAVITY = 2700;
 const JUMP_V  = 980;
 
-function groundY(){ return canvas.height / (window.devicePixelRatio||1) - GROUND_H; }
+function groundY(){ return VH - GROUND_H; }
 
-/* player */
 const player = {
   x: 90, y: 0,
   w: 84, h: 84,
@@ -142,7 +155,7 @@ function drawSprite(row, col, x, y, w, h){
   ctx.drawImage(sprite, sx, sy, frameW, frameH, x, y, w, h);
 }
 
-/* Obstacles */
+/* Obstacles — СПАВН ПО ТАЙМЕРУ */
 const obstacles = [];
 let spawnTimer = 0;
 
@@ -158,7 +171,11 @@ function gapSeconds(){
 function spawnObstacle(){
   const w = 54;
   const h = randInt(75, 140);
-  obstacles.push({ x: (canvas.width/(window.devicePixelRatio||1)) + 80, y: groundY() - h, w, h });
+  obstacles.push({
+    x: VW + 80,
+    y: groundY() - h,
+    w, h
+  });
 }
 
 /* Rewards */
@@ -260,19 +277,16 @@ function loop(now){
   const dt = Math.min(0.033, (now-last)/1000);
   last = now;
 
-  const W = canvas.width/(window.devicePixelRatio||1);
-  const H = canvas.height/(window.devicePixelRatio||1);
-
   // background
-  ctx.clearRect(0,0,W,H);
+  ctx.clearRect(0,0,VW,VH);
 
   // ground
   ctx.fillStyle = "rgba(20,45,75,0.95)";
-  ctx.fillRect(0, groundY(), W, GROUND_H);
+  ctx.fillRect(0, groundY(), VW, GROUND_H);
 
-  // ✅ HUD масштабируем от ширины (чтобы не было “на полэкрана”)
-  const hudBase = clamp(W * 0.055, 14, 22); // 14..22
-  const hudSmall = clamp(W * 0.038, 12, 16);
+  // HUD — адаптивный, но без “гигантизма”
+  const hudBig = clamp(VW * 0.055, 16, 24);
+  const hudSmall = clamp(VW * 0.035, 12, 16);
 
   const safeTop = 12;
   ctx.font = `800 ${hudSmall}px system-ui, -apple-system, Arial`;
@@ -280,23 +294,23 @@ function loop(now){
   ctx.fillText(BUILD, 12, safeTop + hudSmall);
 
   if(state === "play" || state === "over"){
-    ctx.font = `1000 ${hudBase}px system-ui, -apple-system, Arial`;
-    ctx.fillText(`Дистанция: ${Math.floor(distance)} м`, 12, safeTop + hudSmall + hudBase + 12);
-    ctx.fillText(`Рекорд: ${best} м`, 12, safeTop + hudSmall + hudBase*2 + 20);
-    ctx.fillText(`Монеты: ${coins}`, 12, safeTop + hudSmall + hudBase*3 + 28);
+    ctx.font = `1000 ${hudBig}px system-ui, -apple-system, Arial`;
+    ctx.fillText(`Дистанция: ${Math.floor(distance)} м`, 12, safeTop + hudSmall + hudBig + 12);
+    ctx.fillText(`Рекорд: ${best} м`, 12, safeTop + hudSmall + hudBig*2 + 20);
+    ctx.fillText(`Монеты: ${coins}`, 12, safeTop + hudSmall + hudBig*3 + 28);
   }
 
   if(flashT > 0){
     flashT -= dt;
     ctx.font = `900 ${hudSmall}px system-ui, -apple-system, Arial`;
     ctx.fillStyle = "rgba(255,255,255,.98)";
-    ctx.fillText(flashText, 12, safeTop + hudSmall + hudBase*3 + 55);
+    ctx.fillText(flashText, 12, safeTop + hudSmall + hudBig*3 + 55);
   }
 
   if(state === "top"){
-    drawTextBox(12, safeTop + 70, Math.min(520, W-24), 320);
+    drawTextBox(12, safeTop + 70, Math.min(520, VW-24), 320);
     ctx.fillStyle = "#fff";
-    ctx.font = `1000 ${hudBase}px system-ui, -apple-system, Arial`;
+    ctx.font = `1000 ${hudBig}px system-ui, -apple-system, Arial`;
     ctx.fillText("ТОП-10", 24, safeTop + 105);
 
     ctx.font = `900 ${hudSmall}px system-ui, -apple-system, Arial`;
@@ -362,7 +376,7 @@ function loop(now){
     ctx.fillRect(o.x, o.y, o.w, o.h);
   }
 
-  // draw player animation: 0 run, 1 jump, 2 death
+  // player animation
   let row=0, col=0;
   if(state === "over"){ row=2; col=0; }
   else if(!player.onGround){ row=1; col=0; }
@@ -373,11 +387,11 @@ function loop(now){
   }
   drawSprite(row, col, player.x, player.y, player.w, player.h);
 
-  // game over text on canvas
+  // game over text
   if(state === "over"){
-    drawTextBox(12, safeTop + 220, Math.min(520, W-24), 120);
+    drawTextBox(12, safeTop + 220, Math.min(520, VW-24), 120);
     ctx.fillStyle = "#fff";
-    ctx.font = `1000 ${hudBase+4}px system-ui, -apple-system, Arial`;
+    ctx.font = `1000 ${hudBig+4}px system-ui, -apple-system, Arial`;
     ctx.fillText("GAME OVER", 24, safeTop + 255);
     ctx.font = `900 ${hudSmall}px system-ui, -apple-system, Arial`;
     ctx.fillText(`Забег: ${Math.floor(distance)} м  |  +${earnedThisRun} монет`, 24, safeTop + 280);
